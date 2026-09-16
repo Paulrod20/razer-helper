@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using RazerHelper.Core.Services;
 
 namespace RazerHelper.UI.Forms;
 
@@ -10,6 +11,7 @@ public sealed class TrayPopupForm : Form
     private static readonly Color BorderColor = Color.FromArgb(80, 80, 80);
     private static readonly Color RazerGreen = Color.FromArgb(68, 214, 44);
     private bool _allowClose;
+    private static readonly DisplayService _displayService = new();
 
     public TrayPopupForm()
     {
@@ -18,6 +20,7 @@ public sealed class TrayPopupForm : Form
 
         ApplyTheme();
         BuildView();
+        UpdateDisplayStatus();
 
         Deactivate += (_, _) => BeginInvoke(HideWhenInactive);
     }
@@ -429,6 +432,21 @@ public sealed class TrayPopupForm : Form
     {
         if (!_allowClose && Visible && !ContainsFocus)
             Hide();
+    }
+
+    private void UpdateDisplayStatus()
+    {
+        var displayInfo = _displayService.GetPrimaryDisplayInfo();
+        var status = Controls.Find("displayStatusLabel", true)
+            .OfType<Label>()
+            .FirstOrDefault();
+
+        if (status is not null)
+        {
+            status.Text = displayInfo is null
+                ? "Display information not available"
+                : $"Display: {displayInfo.Width}x{displayInfo.Height} @ {displayInfo.RefreshRateHz} Hz";
+        }
     }
 
     private static Font CreateDesignFont(string familyName, float pointSize, FontStyle style = FontStyle.Regular) =>
