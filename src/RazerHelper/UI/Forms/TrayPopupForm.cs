@@ -55,19 +55,20 @@ public sealed class TrayPopupForm : Form
         };
 
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 124F));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 146F));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 68F));
-        content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F)); // Header
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 124F)); // Performance
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 146F)); // Fan
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 74F)); // Display
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F)); // Battery
+        content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // Status
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F)); // Footer
 
         content.Controls.Add(CreateAppHeader(), 0, 0);
         content.Controls.Add(CreatePerformanceSection(), 0, 1);
         content.Controls.Add(CreateFanSection(), 0, 2);
-        content.Controls.Add(CreateBatterySection(), 0, 3);
-        content.Controls.Add(CreateStatusSection(), 0, 4);
+        content.Controls.Add(CreateDisplaySection(), 0, 3);
+        content.Controls.Add(CreateBatterySection(), 0, 4);
+        content.Controls.Add(CreateStatusSection(), 0, 5);
         content.Controls.Add(CreateFooter(), 0, 6);
 
         Controls.Add(content);
@@ -122,6 +123,44 @@ public sealed class TrayPopupForm : Form
         section.Controls.Add(controls);
         section.Controls.Add(readings);
         section.Controls.Add(CreateSectionHeader("Fan Control", string.Empty));
+        return section;
+    }
+
+    private Control CreateDisplaySection()
+    {
+        var section = CreateSectionPanel();
+
+        var header = CreateTwoColumnLayout(60F, 40F);
+        header.Dock = DockStyle.Top;
+        header.Height = 28;
+
+        header.Controls.Add(CreateSectionLabel("Display"), 0, 0);
+
+        header.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Right,
+            Font = CreateDesignFont("Segoe UI", 9.5F),
+            ForeColor = Color.Silver,
+            Name = "displayStatusLabel",
+            Text = "Current: -- Hz",
+            TextAlign = ContentAlignment.MiddleRight
+        }, 1, 0);
+
+        var refreshRates = CreateButtonGrid(
+            ["60 Hz", "120 Hz", "Auto"],
+            "RefreshRateButton");
+
+        refreshRates.Name = "displayRefreshGrid";
+
+        foreach (var button in refreshRates.Controls.OfType<Button>())
+        {
+            button.Click += RefreshRateButton_Click;
+        }
+            
+
+        section.Controls.Add(refreshRates);
+        section.Controls.Add(header);
         return section;
     }
 
@@ -349,6 +388,41 @@ public sealed class TrayPopupForm : Form
         button.FlatAppearance.BorderColor = BorderColor;
         button.FlatAppearance.BorderSize = 1;
         return button;
+    }
+
+    private void RefreshRateButton_Click(object? sender, EventArgs e)
+    {
+        if (sender is not Button selected)
+            return;
+
+        var grid = Controls.Find("displayRefreshGrid", true)
+            .OfType<TableLayoutPanel>()
+            .FirstOrDefault();
+
+        if (grid is null)
+            return;
+
+        foreach (var button in grid.Controls.OfType<Button>())
+        {
+            button.BackColor = ButtonColor;
+            button.ForeColor = Color.White;
+            button.FlatAppearance.BorderColor = BorderColor;
+        }
+
+        selected.BackColor = RazerGreen;
+        selected.ForeColor = BackgroundColor;
+        selected.FlatAppearance.BorderColor = RazerGreen;
+
+        var status = Controls.Find("displayStatusLabel", true)
+            .OfType<Label>()
+            .FirstOrDefault();
+
+        if (status is not null)
+        { 
+            status.Text = selected.Text == "Auto" 
+                ? "Auto: 120 Hz AC / 60 Hz Battery"
+                : $"Selected: {selected.Text}";
+        }
     }
 
     private void HideWhenInactive()
