@@ -173,7 +173,7 @@ public sealed class TrayPopupForm : Form
         var header = new TableLayoutPanel
         {
             BackColor = BackgroundColor,
-            ColumnCount = 3,
+            ColumnCount = 2,
             Dock = DockStyle.Top,
             Height = 28,
             Margin = Padding.Empty,
@@ -182,24 +182,23 @@ public sealed class TrayPopupForm : Form
         };
 
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35F));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
         var title = CreateSectionLabel("Battery Charge Limit");
         var charge = new Label
         {
             AutoSize = true,
-            Dock = DockStyle.Right,
+            Dock = DockStyle.None,
             Font = CreateDesignFont("Segoe UI", 9.5F),
             ForeColor = Color.Silver,
             Name = "batteryStatusLabel",
-            Text = "Charge: --%",
+            Text = "Charge: ",
             TextAlign = ContentAlignment.MiddleRight
         };
         var limit = new Label
         {
             AutoSize = true,
-            Dock = DockStyle.Right,
+            Dock = DockStyle.None,
             Font = CreateDesignFont("Segoe UI", 9.5F),
             ForeColor = RazerGreen,
             Name = "batteryLimitLabel",
@@ -207,27 +206,69 @@ public sealed class TrayPopupForm : Form
             TextAlign = ContentAlignment.MiddleRight
         };
 
+        var batteryValues = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Right,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            WrapContents = false
+        };
+
+        limit.Margin = new Padding(6, 0, 0, 0);
+
+        batteryValues.Controls.Add(charge);
+        batteryValues.Controls.Add(limit);
+
         header.Controls.Add(title, 0, 0);
-        header.Controls.Add(charge, 1, 0);
-        header.Controls.Add(limit, 2, 0);
+        header.Controls.Add(batteryValues, 1, 0);
 
         var slider = new TrackBar
         {
             BackColor = BackgroundColor,
-            Dock = DockStyle.Bottom,
-            LargeChange = 10,
+            Dock = DockStyle.Top,
+            LargeChange = 20,
             Maximum = 100,
-            Minimum = 50,
+            Minimum = 60,
             Name = "batteryLimitSlider",
             Height = 46,
-            SmallChange = 5,
-            TickFrequency = 10,
+            SmallChange = 20,
+            TickFrequency = 20,
             Value = 80
         };
-        slider.ValueChanged += (_, _) => limit.Text = $"{slider.Value}%";
+        slider.ValueChanged += (_, _) =>
+        {
+            var snappedValue = (int)Math.Round(
+                (slider.Value - slider.Minimum) / 20D,
+                MidpointRounding.AwayFromZero) * 20 + slider.Minimum;
+
+            snappedValue = Math.Clamp(
+                snappedValue,
+                slider.Minimum,
+                slider.Maximum);
+
+            if (slider.Value != snappedValue)
+            {
+                slider.Value = snappedValue;
+                return;
+            }
+
+            limit.Text = $"{slider.Value}%";
+        };
+
+        var spacer = new Panel
+        {
+            BackColor = BackgroundColor,
+            Dock = DockStyle.Top,
+            Height = 5
+        };
 
         section.Controls.Add(slider);
+        section.Controls.Add(spacer);
         section.Controls.Add(header);
+
         return section;
     }
 
@@ -266,7 +307,7 @@ public sealed class TrayPopupForm : Form
     {
         BackColor = BackgroundColor,
         Dock = DockStyle.Fill,
-        Margin = Padding.Empty,
+        Margin = new Padding(0, 0, 0, 8),
         Padding = Padding.Empty
     };
 
