@@ -443,8 +443,34 @@ public sealed class TrayPopupForm : Form
             .OfType<TableLayoutPanel>()
             .FirstOrDefault();
 
-        if (grid is null)
+        var status = Controls.Find("displayStatusLabel", true)
+            .OfType<Label>()
+            .FirstOrDefault();
+
+        if (grid is null || status is null)
             return;
+
+        if (selected.Text == "Auto")
+        {
+            status.Text = "Auto switching will be added after manual switching is verified.";
+            return;
+        }
+
+        var refreshRateText = selected.Text.Replace(" Hz", string.Empty);
+
+        if (!int.TryParse(refreshRateText, out var requestedRefreshRate))
+        {
+            status.Text = "Invalid refresh-rate selection.";
+            return;
+        }
+
+        if (!_displayService.TrySetPrimaryRefreshRate(
+            requestedRefreshRate,
+            out var message))
+        {
+            status.Text = message;
+            return;
+        }
 
         foreach (var button in grid.Controls.OfType<Button>())
         {
@@ -457,16 +483,7 @@ public sealed class TrayPopupForm : Form
         selected.ForeColor = BackgroundColor;
         selected.FlatAppearance.BorderColor = RazerGreen;
 
-        var status = Controls.Find("displayStatusLabel", true)
-            .OfType<Label>()
-            .FirstOrDefault();
-
-        if (status is not null)
-        { 
-            status.Text = selected.Text == "Auto" 
-                ? "Auto: 120 Hz AC / 60 Hz Battery"
-                : $"Selected: {selected.Text}";
-        }
+        UpdateDisplayStatus();
     }
 
     private void HideWhenInactive()

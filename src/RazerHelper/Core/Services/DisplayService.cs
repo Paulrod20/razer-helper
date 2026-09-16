@@ -6,13 +6,21 @@ namespace RazerHelper.Core.Services;
 public sealed class DisplayService
 {
     private const int EnumCurrentSettings = -1;
+    private const int ChangeSuccessful = 0;
+    private const int CdsTest = 0x00000002;
+    private const int DmDisplayFrequency = 0x00400000;
 
-    public DisplayInfo? GetPrimaryDisplayInfo()
-    {
-        var deviceMode = new DeviceMode
+    private static DeviceMode CreateDeviceMode()
+    { 
+        return new DeviceMode
         {
             Size = (short)Marshal.SizeOf<DeviceMode>()
         };
+    }
+
+    public DisplayInfo? GetPrimaryDisplayInfo()
+    {
+        var deviceMode = CreateDeviceMode();
 
         var foundDisplay = EnumDisplaySettings(
             deviceName: null,
@@ -32,12 +40,84 @@ public sealed class DisplayService
         );
     }
 
+    public bool TrySetPrimaryRefreshRate(int refreshRateHz, out string message)
+    {
+        var currentMode = CreateDeviceMode();
+
+        if (!EnumDisplaySettings(null, EnumCurrentSettings, ref currentMode))
+        {
+            message = "Could not read the current display mode.";
+            return false;
+        }
+
+        for (var modeNumber = 0; ; modeNumber++)
+        {
+            var candidateMode = CreateDeviceMode();
+
+            if (!EnumDisplaySettings(null, modeNumber, ref candidateMode))
+                break;
+
+            var matchesCurrentResolution =
+                candidateMode.Width == currentMode.Width &&
+                candidateMode.Height == currentMode.Height &&
+                candidateMode.BitsPerPixel == currentMode.BitsPerPixel;
+
+            if (!matchesCurrentResolution ||
+                candidateMode.RefreshRateHz != refreshRateHz)
+            {
+                continue;
+            }
+
+            candidateMode.Fields = DmDisplayFrequency;
+
+            var testResult = ChangeDisplaySettingsEx(
+                deviceName: null,
+                deviceMode: ref candidateMode,
+                hwnd: IntPtr.Zero,
+                flags: CdsTest,
+                lParam: IntPtr.Zero);
+
+            if (testResult != ChangeSuccessful)
+            {
+                message = $"{refreshRateHz} Hz is not available for the current display mode.";
+                return false;
+            }
+
+            var applyResult = ChangeDisplaySettingsEx(
+                deviceName: null,
+                deviceMode: ref candidateMode,
+                hwnd: IntPtr.Zero,
+                flags: 0,
+                lParam: IntPtr.Zero);
+
+            if (applyResult != ChangeSuccessful)
+            {
+                message = $"Windows could not apply {refreshRateHz} Hz. Error: {applyResult}.";
+                return false;
+            }
+
+            message = $"Switched to {refreshRateHz} Hz.";
+            return true;
+        }
+
+        message = $"{refreshRateHz} Hz is not available at {currentMode.Width}x{currentMode.Height}.";
+        return false;
+    }
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EnumDisplaySettings(
         string? deviceName,
         int modeNumber,
         ref DeviceMode deviceMode);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "ChangeDisplaySettingsExW")]
+    private static extern int ChangeDisplaySettingsEx(
+        string? deviceName,
+        ref DeviceMode deviceMode,
+        IntPtr hwnd,
+        int flags,
+        IntPtr lParam);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct DeviceMode
