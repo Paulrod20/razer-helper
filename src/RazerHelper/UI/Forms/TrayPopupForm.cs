@@ -13,7 +13,13 @@ public sealed class TrayPopupForm : Form
     private bool _allowClose;
     private static readonly DisplayService _displayService = new();
     private readonly PowerSourceService _powerSourceService = new();
+    private readonly FanTelemetryService _fanTelemetryService = new();
+    private readonly System.Windows.Forms.Timer _fanTelemetryTimer = new()
+    {
+        Interval = 2_000
+    };
     private bool _isAutoRefreshEnabled;
+    private bool _fanRefreshInProgress;
 
     public TrayPopupForm()
     {
@@ -25,6 +31,7 @@ public sealed class TrayPopupForm : Form
         UpdateDisplayStatus();
 
         _powerSourceService.PowerSourceChanged += PowerSourceService_PowerSourceChanged;
+        _fanTelemetryTimer.Tick += FanTelemetryTimer_Tick;
 
         Deactivate += (_, _) => BeginInvoke(HideWhenInactive);
     }
@@ -548,6 +555,53 @@ public sealed class TrayPopupForm : Form
             Hide();
     }
 
+    private async void FanTelemetryTimer_Tick(object? sender, EventArgs e) =>
+        await RefreshFanReadingsAsync();
+
+    private async Task RefreshFanReadingsAsync()
+    {
+        if (_fanRefreshInProgress)
+            return;
+
+        _fanRefreshInProgress = true;
+
+        try
+        {
+            var reading = await _fanTelemetryService.ReadAsync();
+
+            if (!Visible || reading is null)
+                return;
+
+            SetFanReading("cpuFanLabel", "CPU Fan", reading.CpuFanRpm);
+            SetFanReading("gpuFanLabel", "GPU Fan", reading.GpuFanRpm);
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"Fan telemetry read failed: {exception}");
+
+            if (Visible)
+            {
+                SetFanReading("cpuFanLabel", "CPU Fan", null);
+                SetFanReading("gpuFanLabel", "GPU Fan", null);
+            }
+        }
+        finally
+        {
+            _fanRefreshInProgress = false;
+        }
+    }
+
+    private void SetFanReading(string controlName, string label, int? rpm)
+    {
+        var control = Controls.Find(controlName, true)
+            .OfType<Label>()
+            .FirstOrDefault();
+
+        if (control is not null)
+            control.Text = rpm is null ? $"{label}: -- RPM" : $"{label}: {rpm} RPM";
+    }
+
     private void UpdateDisplayStatus()
     {
         var displayInfo = _displayService.GetPrimaryDisplayInfo();
@@ -580,7 +634,26 @@ public sealed class TrayPopupForm : Form
 
         _powerSourceService.PowerSourceChanged -= PowerSourceService_PowerSourceChanged;
         _powerSourceService.Dispose();
+        _fanTelemetryTimer.Stop();
+        _fanTelemetryTimer.Tick -= FanTelemetryTimer_Tick;
+        _fanTelemetryTimer.Dispose();
+        _fanTelemetryService.Dispose();
 
         base.OnFormClosing(e);
+    }
+
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+
+        if (Visible)
+        {
+            _fanTelemetryTimer.Start();
+            _ = RefreshFanReadingsAsync();
+        }
+        else
+        {
+            _fanTelemetryTimer.Stop();
+        }
     }
 }
