@@ -15,6 +15,7 @@ public sealed class TrayPopupForm : Form
     private static readonly DisplayService _displayService = new();
     private readonly PowerSourceService _powerSourceService = new();
     private readonly FanTelemetryService _fanTelemetryService = new();
+    private readonly BatteryChargeLimitService _batteryChargeLimitService = new();
     private readonly SettingsService _settingsService = new();
     private readonly System.Windows.Forms.Timer _fanTelemetryTimer = new()
     {
@@ -23,6 +24,7 @@ public sealed class TrayPopupForm : Form
     private AppSettings _settings;
     private bool _isAutoRefreshEnabled;
     private bool _fanRefreshInProgress;
+    private bool _batteryUpdateInProgress;
 
     public TrayPopupForm()
     {
@@ -35,6 +37,7 @@ public sealed class TrayPopupForm : Form
         BuildView();
         RestoreDisplaySetting();
         UpdateDisplayStatus();
+        _ = RestoreBatteryChargeLimitAsync();
 
         _powerSourceService.PowerSourceChanged += PowerSourceService_PowerSourceChanged;
         _fanTelemetryTimer.Tick += FanTelemetryTimer_Tick;
@@ -187,7 +190,7 @@ public sealed class TrayPopupForm : Form
     private Control CreateBatterySection()
     {
         var initialBatteryLimit = NormalizeBatteryLimit(
-            _settings.BatteryChargeLimit);
+            _settings.BatteryChargeLimit ?? 80);
         var section = CreateSectionPanel();
         var header = new TableLayoutPanel
         {
@@ -275,11 +278,11 @@ public sealed class TrayPopupForm : Form
             }
 
             limit.Text = $"{slider.Value}%";
-            SaveSettings(_settings with
-            {
-                BatteryChargeLimit = slider.Value
-            });
         };
+        slider.MouseUp += async (_, _) =>
+            await CommitBatteryChargeLimitAsync(slider);
+        slider.KeyUp += async (_, _) =>
+            await CommitBatteryChargeLimitAsync(slider);
 
         var spacer = new Panel
         {
@@ -307,8 +310,9 @@ public sealed class TrayPopupForm : Form
             Dock = DockStyle.Top,
             Font = CreateDesignFont("Segoe UI", 9.5F),
             ForeColor = Color.Silver,
+            Name = "appStatusLabel",
             Padding = new Padding(0, 4, 0, 0),
-            Text = "Tray shell is ready. Hardware controls are disabled until verified."
+            Text = "Tray shell is ready. Display and battery controls are active."
         };
 
         section.Controls.Add(note);
@@ -546,6 +550,78 @@ public sealed class TrayPopupForm : Form
             MidpointRounding.AwayFromZero) * 20 + 60;
     }
 
+    private async Task CommitBatteryChargeLimitAsync(TrackBar slider)
+    {
+        if (_batteryUpdateInProgress)
+            return;
+
+        var requestedLimit = slider.Value;
+        var previousLimit = _settings.BatteryChargeLimit;
+        _batteryUpdateInProgress = true;
+        slider.Enabled = false;
+
+        try
+        {
+            await _batteryChargeLimitService.SetChargeLimitAsync(requestedLimit);
+
+            SaveSettings(_settings with
+            {
+                BatteryChargeLimit = requestedLimit
+            });
+
+            SetStatusMessage(requestedLimit == 100
+                ? "Battery charge limit disabled. Charging is allowed to 100%."
+                : $"Battery charge limit set to {requestedLimit}%.");
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"Battery charge-limit change failed: {exception}");
+
+            if (previousLimit is not null)
+                slider.Value = NormalizeBatteryLimit(previousLimit.Value);
+
+            SetStatusMessage(
+                "Could not change the battery charge limit.",
+                isError: true);
+        }
+        finally
+        {
+            slider.Enabled = true;
+            _batteryUpdateInProgress = false;
+        }
+    }
+
+    private async Task RestoreBatteryChargeLimitAsync()
+    {
+        if (_settings.BatteryChargeLimit is not int savedLimit)
+            return;
+
+        try
+        {
+            await _batteryChargeLimitService.SetChargeLimitAsync(
+                NormalizeBatteryLimit(savedLimit));
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"Could not restore the saved battery charge limit: {exception}");
+        }
+    }
+
+    private void SetStatusMessage(string message, bool isError = false)
+    {
+        var status = Controls.Find("appStatusLabel", true)
+            .OfType<Label>()
+            .FirstOrDefault();
+
+        if (status is null)
+            return;
+
+        status.ForeColor = isError ? Color.IndianRed : Color.Silver;
+        status.Text = message;
+    }
+
     private void PowerSourceService_PowerSourceChanged(
     object? sender,
     EventArgs e)
@@ -693,6 +769,7 @@ public sealed class TrayPopupForm : Form
         _fanTelemetryTimer.Tick -= FanTelemetryTimer_Tick;
         _fanTelemetryTimer.Dispose();
         _fanTelemetryService.Dispose();
+        _batteryChargeLimitService.Dispose();
 
         base.OnFormClosing(e);
     }

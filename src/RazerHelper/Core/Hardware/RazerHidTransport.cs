@@ -16,14 +16,17 @@ internal sealed class RazerHidTransport : IDisposable
     private const uint FileShareWrite = 0x00000002;
     private const uint OpenExisting = 3;
 
-    private readonly Lock _syncRoot = new();
+    // All services share the same physical EC command channel. Serializing
+    // process-wide prevents fan reads and setting writes from consuming each
+    // other's responses when they happen at the same time.
+    private static readonly Lock DeviceSyncRoot = new();
     private SafeFileHandle? _deviceHandle;
     private int _featureReportLength;
     private bool _disposed;
 
     public byte[] Send(ushort command, ReadOnlySpan<byte> arguments)
     {
-        lock (_syncRoot)
+        lock (DeviceSyncRoot)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -42,7 +45,7 @@ internal sealed class RazerHidTransport : IDisposable
 
     public void Dispose()
     {
-        lock (_syncRoot)
+        lock (DeviceSyncRoot)
         {
             if (_disposed)
                 return;
