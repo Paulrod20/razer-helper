@@ -8,8 +8,10 @@ namespace RazerHelper.Core.Hardware;
 internal sealed class RazerHidTransport : IDisposable
 {
     private const int RazerVendorId = 0x1532;
+    private const int Blade16_2023ProductId = 0x029F;
     private const ushort GetDeviceModeCommand = 0x0084;
     private const int MaximumAttempts = 5;
+    private const int ConnectionProbeAttempts = 3;
     private const uint FileShareRead = 0x00000001;
     private const uint FileShareWrite = 0x00000002;
     private const uint OpenExisting = 3;
@@ -55,16 +57,10 @@ internal sealed class RazerHidTransport : IDisposable
         if (_deviceHandle is not null)
             return;
 
-        var detectedRazerProductIds = new List<int>();
-
-        foreach (var device in DeviceList.Local.GetHidDevices())
+        foreach (var device in DeviceList.Local.GetHidDevices(
+            RazerVendorId,
+            Blade16_2023ProductId))
         {
-            if (device.VendorID != RazerVendorId)
-                continue;
-
-            if (!detectedRazerProductIds.Contains(device.ProductID))
-                detectedRazerProductIds.Add(device.ProductID);
-
             var reportLength = device.GetMaxFeatureReportLength();
 
             if (reportLength < RazerHidPacket.MinimumFeatureReportLength)
@@ -93,7 +89,10 @@ internal sealed class RazerHidTransport : IDisposable
 
             try
             {
-                Exchange(GetDeviceModeCommand, [0x00, 0x00], maximumAttempts: 1);
+                Exchange(
+                    GetDeviceModeCommand,
+                    [0x00, 0x00],
+                    maximumAttempts: ConnectionProbeAttempts);
                 return;
             }
             catch
@@ -102,15 +101,9 @@ internal sealed class RazerHidTransport : IDisposable
             }
         }
 
-        if (detectedRazerProductIds.Count == 0)
-            throw new InvalidOperationException("No Razer HID devices were detected.");
-
-        detectedRazerProductIds.Sort();
-        var detectedProductIdsText = string.Join(", ",
-            detectedRazerProductIds.ConvertAll(productId => $"0x{productId:X4}"));
-
         throw new InvalidOperationException(
-            $"No compatible Razer control HID interface responded. Detected Razer product IDs: {detectedProductIdsText}.");
+            "The Razer Blade 16 (2023) control interface did not respond " +
+            $"(VID 0x{RazerVendorId:X4}, PID 0x{Blade16_2023ProductId:X4}).");
     }
 
     private byte[] Exchange(

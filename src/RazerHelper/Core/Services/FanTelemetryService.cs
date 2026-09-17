@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using RazerHelper.Core.Hardware;
 using RazerHelper.Core.Models;
 
@@ -13,7 +15,19 @@ public sealed class FanTelemetryService : IDisposable
     private FanRpmReading? _publishedReading;
     private bool _stoppedReadingPending;
 
-    public Task<FanRpmReading?> ReadAsync() => Task.Run(Read);
+    public Task<FanRpmReading?> ReadAsync() => Task.Run(() =>
+    {
+        try
+        {
+            return Read();
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException or Win32Exception)
+        {
+            Debug.WriteLine($"Fan telemetry is temporarily unavailable: {exception}");
+            return _publishedReading;
+        }
+    });
 
     public void Dispose() => _transport.Dispose();
 
