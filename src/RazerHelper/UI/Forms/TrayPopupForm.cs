@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
 
 namespace RazerHelper.UI.Forms;
@@ -14,20 +15,25 @@ public sealed class TrayPopupForm : Form
     private static readonly DisplayService _displayService = new();
     private readonly PowerSourceService _powerSourceService = new();
     private readonly FanTelemetryService _fanTelemetryService = new();
+    private readonly SettingsService _settingsService = new();
     private readonly System.Windows.Forms.Timer _fanTelemetryTimer = new()
     {
         Interval = 2_000
     };
+    private AppSettings _settings;
     private bool _isAutoRefreshEnabled;
     private bool _fanRefreshInProgress;
 
     public TrayPopupForm()
     {
+        _settings = _settingsService.Load();
+
         // Keep the tray popup's design surface stable across display scales.
         AutoScaleMode = AutoScaleMode.None;
 
         ApplyTheme();
         BuildView();
+        RestoreDisplaySetting();
         UpdateDisplayStatus();
 
         _powerSourceService.PowerSourceChanged += PowerSourceService_PowerSourceChanged;
@@ -180,6 +186,8 @@ public sealed class TrayPopupForm : Form
 
     private Control CreateBatterySection()
     {
+        var initialBatteryLimit = NormalizeBatteryLimit(
+            _settings.BatteryChargeLimit);
         var section = CreateSectionPanel();
         var header = new TableLayoutPanel
         {
@@ -213,7 +221,7 @@ public sealed class TrayPopupForm : Form
             Font = CreateDesignFont("Segoe UI", 9.5F),
             ForeColor = RazerGreen,
             Name = "batteryLimitLabel",
-            Text = "80%",
+            Text = $"{initialBatteryLimit}%",
             TextAlign = ContentAlignment.MiddleRight
         };
 
@@ -247,7 +255,7 @@ public sealed class TrayPopupForm : Form
             Height = 46,
             SmallChange = 20,
             TickFrequency = 20,
-            Value = 80
+            Value = initialBatteryLimit
         };
         slider.ValueChanged += (_, _) =>
         {
@@ -267,6 +275,10 @@ public sealed class TrayPopupForm : Form
             }
 
             limit.Text = $"{slider.Value}%";
+            SaveSettings(_settings with
+            {
+                BatteryChargeLimit = slider.Value
+            });
         };
 
         var spacer = new Panel
@@ -465,6 +477,7 @@ public sealed class TrayPopupForm : Form
         {
             _isAutoRefreshEnabled = true;
             SelectRefreshRateButton(grid, selected);
+            SaveSettings(_settings with { DisplayMode = selected.Text });
             ApplyAutoRefreshRate();
             return;
         }
@@ -488,7 +501,49 @@ public sealed class TrayPopupForm : Form
         }
 
         SelectRefreshRateButton(grid, selected);
+        SaveSettings(_settings with { DisplayMode = selected.Text });
         UpdateDisplayStatus();
+    }
+
+    private void RestoreDisplaySetting()
+    {
+        if (string.IsNullOrWhiteSpace(_settings.DisplayMode))
+            return;
+
+        var grid = Controls.Find("displayRefreshGrid", true)
+            .OfType<TableLayoutPanel>()
+            .FirstOrDefault();
+
+        var selected = grid?.Controls
+            .OfType<Button>()
+            .FirstOrDefault(button =>
+                string.Equals(
+                    button.Text,
+                    _settings.DisplayMode,
+                    StringComparison.Ordinal));
+
+        if (grid is null || selected is null)
+            return;
+
+        SelectRefreshRateButton(grid, selected);
+        _isAutoRefreshEnabled = selected.Text == "Auto";
+
+        if (_isAutoRefreshEnabled)
+            ApplyAutoRefreshRate();
+    }
+
+    private void SaveSettings(AppSettings settings)
+    {
+        _settings = settings;
+        _settingsService.Save(settings);
+    }
+
+    private static int NormalizeBatteryLimit(int value)
+    {
+        var clampedValue = Math.Clamp(value, 60, 100);
+        return (int)Math.Round(
+            (clampedValue - 60) / 20D,
+            MidpointRounding.AwayFromZero) * 20 + 60;
     }
 
     private void PowerSourceService_PowerSourceChanged(
