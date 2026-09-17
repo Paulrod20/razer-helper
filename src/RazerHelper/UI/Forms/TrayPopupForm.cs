@@ -12,6 +12,8 @@ public sealed class TrayPopupForm : Form
     private static readonly Color RazerGreen = Color.FromArgb(68, 214, 44);
     private bool _allowClose;
     private static readonly DisplayService _displayService = new();
+    private readonly PowerSourceService _powerSourceService = new();
+    private bool _isAutoRefreshEnabled;
 
     public TrayPopupForm()
     {
@@ -21,6 +23,8 @@ public sealed class TrayPopupForm : Form
         ApplyTheme();
         BuildView();
         UpdateDisplayStatus();
+
+        _powerSourceService.PowerSourceChanged += PowerSourceService_PowerSourceChanged;
 
         Deactivate += (_, _) => BeginInvoke(HideWhenInactive);
     }
@@ -452,9 +456,13 @@ public sealed class TrayPopupForm : Form
 
         if (selected.Text == "Auto")
         {
-            status.Text = "Auto switching will be added after manual switching is verified.";
+            _isAutoRefreshEnabled = true;
+            SelectRefreshRateButton(grid, selected);
+            ApplyAutoRefreshRate();
             return;
         }
+
+        _isAutoRefreshEnabled = false;
 
         var refreshRateText = selected.Text.Replace(" Hz", string.Empty);
 
@@ -472,6 +480,24 @@ public sealed class TrayPopupForm : Form
             return;
         }
 
+        SelectRefreshRateButton(grid, selected);
+        UpdateDisplayStatus();
+    }
+
+    private void PowerSourceService_PowerSourceChanged(
+    object? sender,
+    EventArgs e)
+    {
+        if (!_isAutoRefreshEnabled || IsDisposed || !IsHandleCreated)
+            return;
+
+        BeginInvoke(ApplyAutoRefreshRate);
+    }
+
+    private static void SelectRefreshRateButton(
+    TableLayoutPanel grid,
+    Button selected)
+    {
         foreach (var button in grid.Controls.OfType<Button>())
         {
             button.BackColor = ButtonColor;
@@ -482,6 +508,36 @@ public sealed class TrayPopupForm : Form
         selected.BackColor = RazerGreen;
         selected.ForeColor = BackgroundColor;
         selected.FlatAppearance.BorderColor = RazerGreen;
+    }
+
+    private void ApplyAutoRefreshRate()
+    {
+        var status = Controls.Find("displayStatusLabel", true)
+            .OfType<Label>()
+            .FirstOrDefault();
+
+        if (status is null)
+            return;
+
+        var isPluggedIn = _powerSourceService.IsPluggedIn;
+
+        if (isPluggedIn is null)
+        {
+            status.Text = "Auto: power source unavailable.";
+            return;
+        }
+
+        var requestedRefreshRate = isPluggedIn.Value ? 120 : 60;
+        var displayInfo = _displayService.GetPrimaryDisplayInfo();
+
+        if (displayInfo?.RefreshRateHz != requestedRefreshRate &&
+            !_displayService.TrySetPrimaryRefreshRate(
+                requestedRefreshRate,
+                out var message))
+        {
+            status.Text = message;
+            return;
+        }
 
         UpdateDisplayStatus();
     }
@@ -521,6 +577,9 @@ public sealed class TrayPopupForm : Form
             Hide();
             return;
         }
+
+        _powerSourceService.PowerSourceChanged -= PowerSourceService_PowerSourceChanged;
+        _powerSourceService.Dispose();
 
         base.OnFormClosing(e);
     }
