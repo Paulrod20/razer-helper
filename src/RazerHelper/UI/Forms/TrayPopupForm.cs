@@ -563,6 +563,13 @@ public sealed class TrayPopupForm : Form
 
         var requestedLimit = slider.Value;
         var previousLimit = _settings.BatteryChargeLimit;
+
+        // MouseUp and KeyUp fire for any click or key press, not only when the
+        // value moved. The saved limit is only updated after a confirmed write,
+        // so matching it means the EC already has this value.
+        if (requestedLimit == previousLimit)
+            return;
+
         _batteryUpdateInProgress = true;
         slider.Enabled = false;
 
