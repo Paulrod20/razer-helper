@@ -6,6 +6,8 @@ namespace RazerHelper.UI.Forms;
 
 public sealed class TrayPopupForm : Form
 {
+    private const int DefaultBatteryLimit = 100;
+
     private static readonly float DpiScale = GetDpiForSystem() / 96F;
     private static readonly Color BackgroundColor = Color.FromArgb(30, 30, 30);
     private static readonly Color ButtonColor = Color.FromArgb(50, 50, 50);
@@ -196,7 +198,7 @@ public sealed class TrayPopupForm : Form
     private Control CreateBatterySection()
     {
         var initialBatteryLimit = NormalizeBatteryLimit(
-            _settings.BatteryChargeLimit ?? 80);
+            _settings.BatteryChargeLimit ?? DefaultBatteryLimit);
         var section = CreateSectionPanel();
         var header = new TableLayoutPanel
         {
@@ -591,8 +593,8 @@ public sealed class TrayPopupForm : Form
             System.Diagnostics.Debug.WriteLine(
                 $"Battery charge-limit change failed: {exception}");
 
-            if (previousLimit is not null)
-                slider.Value = NormalizeBatteryLimit(previousLimit.Value);
+            slider.Value = NormalizeBatteryLimit(
+                previousLimit ?? DefaultBatteryLimit);
 
             SetStatusMessage(
                 "Could not change the battery charge limit.",
