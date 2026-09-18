@@ -1,7 +1,8 @@
-using System.Runtime.InteropServices;
 using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
+using static RazerHelper.UI.UiControls;
+using static RazerHelper.UI.UiTheme;
 
 namespace RazerHelper.UI.Forms;
 
@@ -9,11 +10,6 @@ public sealed class TrayPopupForm : Form
 {
     private const int DefaultBatteryLimit = 100;
 
-    private static readonly float DpiScale = GetDpiForSystem() / 96F;
-    private static readonly Color BackgroundColor = Color.FromArgb(30, 30, 30);
-    private static readonly Color ButtonColor = Color.FromArgb(50, 50, 50);
-    private static readonly Color BorderColor = Color.FromArgb(80, 80, 80);
-    private static readonly Color RazerGreen = Color.FromArgb(68, 214, 44);
     private bool _allowClose;
     private static readonly DisplayService _displayService = new();
     private readonly PowerSourceService _powerSourceService = new();
@@ -339,66 +335,6 @@ public sealed class TrayPopupForm : Form
         TextAlign = ContentAlignment.MiddleLeft
     };
 
-    private static Panel CreateSectionPanel() => new()
-    {
-        BackColor = BackgroundColor,
-        Dock = DockStyle.Fill,
-        Margin = new Padding(0, 0, 0, 8),
-        Padding = Padding.Empty
-    };
-
-    private static TableLayoutPanel CreateTwoColumnLayout(float leftWidth, float rightWidth)
-    {
-        var layout = new TableLayoutPanel
-        {
-            BackColor = BackgroundColor,
-            ColumnCount = 2,
-            Dock = DockStyle.Fill,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-            RowCount = 1
-        };
-
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, leftWidth));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, rightWidth));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        return layout;
-    }
-
-    private static Control CreateSectionHeader(string title, string detail)
-    {
-        var header = CreateTwoColumnLayout(60F, 40F);
-        header.Dock = DockStyle.Top;
-        header.Height = 28;
-
-        header.Controls.Add(CreateSectionLabel(title), 0, 0);
-
-        if (!string.IsNullOrWhiteSpace(detail))
-        {
-            header.Controls.Add(new Label
-            {
-                AutoSize = true,
-                Dock = DockStyle.Right,
-                Font = CreateDesignFont("Segoe UI", 9.5F),
-                ForeColor = Color.Silver,
-                Text = detail,
-                TextAlign = ContentAlignment.MiddleRight
-            }, 1, 0);
-        }
-
-        return header;
-    }
-
-    private static Label CreateSectionLabel(string text) => new()
-    {
-        AutoSize = true,
-        Dock = DockStyle.Left,
-        Font = CreateDesignFont("Segoe UI", 10F, FontStyle.Bold),
-        ForeColor = Color.White,
-        Text = text,
-        TextAlign = ContentAlignment.MiddleLeft
-    };
-
     private static Control CreateFanReadings()
     {
         var readings = CreateTwoColumnLayout(50F, 50F);
@@ -421,54 +357,6 @@ public sealed class TrayPopupForm : Form
         Text = text,
         TextAlign = ContentAlignment.MiddleLeft
     };
-
-    private static Control CreateButtonGrid(IReadOnlyList<string> buttonNames, string nameSuffix)
-    {
-        var grid = new TableLayoutPanel
-        {
-            BackColor = BackgroundColor,
-            ColumnCount = buttonNames.Count,
-            Dock = DockStyle.Fill,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-            RowCount = 1
-        };
-
-        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-        for (var index = 0; index < buttonNames.Count; index++)
-        {
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / buttonNames.Count));
-
-            var name = buttonNames[index];
-            var button = CreateActionButton(name);
-            button.Name = $"{name}{nameSuffix}";
-            button.Tag = name;
-            grid.Controls.Add(button, index, 0);
-        }
-
-        return grid;
-    }
-
-    private static Button CreateActionButton(string text)
-    {
-        var button = new Button
-        {
-            BackColor = ButtonColor,
-            Cursor = Cursors.Hand,
-            Dock = DockStyle.Fill,
-            FlatStyle = FlatStyle.Flat,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
-            ForeColor = Color.White,
-            Margin = new Padding(4),
-            Text = text,
-            UseVisualStyleBackColor = false
-        };
-
-        button.FlatAppearance.BorderColor = BorderColor;
-        button.FlatAppearance.BorderSize = 1;
-        return button;
-    }
 
     private void RefreshRateButton_Click(object? sender, EventArgs e)
     {
@@ -764,12 +652,6 @@ public sealed class TrayPopupForm : Form
                 : $"Display: {displayInfo.Width}x{displayInfo.Height} @ {displayInfo.RefreshRateHz} Hz";
         }
     }
-
-    private static Font CreateDesignFont(string familyName, float pointSize, FontStyle style = FontStyle.Regular) =>
-        new(familyName, pointSize / DpiScale, style, GraphicsUnit.Point);
-
-    [DllImport("user32.dll")]
-    private static extern uint GetDpiForSystem();
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
