@@ -3,4 +3,6 @@ namespace RazerHelper.Core.Models;
 public sealed record AppSettings(
     string? DisplayMode = null,
     int? BatteryChargeLimit = null,
-    string? PerformanceMode = null);
+    string? PerformanceMode = null,
+    string? CustomCpuBoost = null,
+    string? CustomGpuBoost = null);

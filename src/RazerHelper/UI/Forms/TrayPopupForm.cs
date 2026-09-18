@@ -1,6 +1,7 @@
 using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
+using RazerHelper.Helpers;
 using RazerHelper.UI.Sections;
 using static RazerHelper.UI.UiControls;
 using static RazerHelper.UI.UiTheme;
@@ -9,6 +10,8 @@ namespace RazerHelper.UI.Forms;
 
 public sealed class TrayPopupForm : Form
 {
+    private const int PerformanceBaseRowHeight = 124;
+
     private bool _allowClose;
     private readonly SettingsService _settingsService = new();
     private readonly PowerSourceService _powerSourceService = new();
@@ -16,7 +19,8 @@ public sealed class TrayPopupForm : Form
     private readonly DisplaySection _displaySection;
     private readonly FanSection _fanSection;
     private readonly PerformanceSection _performanceSection;
-    private readonly StatusSection _statusSection = new();
+    private readonly Label _footerLabel = CreateFooterLabel();
+    private TableLayoutPanel _content = null!;
     private AppSettings _settings;
 
     public TrayPopupForm()
@@ -25,8 +29,15 @@ public sealed class TrayPopupForm : Form
 
         _fanSection = new FanSection();
 
-        _performanceSection = new PerformanceSection(_settings.PerformanceMode, _powerSourceService);
+        _performanceSection = new PerformanceSection(
+            _settings.PerformanceMode,
+            _settings.CustomCpuBoost,
+            _settings.CustomGpuBoost,
+            _powerSourceService);
         _performanceSection.ModeApplied += PerformanceSection_ModeApplied;
+        _performanceSection.CpuBoostApplied += PerformanceSection_CpuBoostApplied;
+        _performanceSection.GpuBoostApplied += PerformanceSection_GpuBoostApplied;
+        _performanceSection.CustomRowVisibilityChanged += PerformanceSection_CustomRowVisibilityChanged;
         _performanceSection.StatusChanged += Section_StatusChanged;
 
         _displaySection = new DisplaySection(_settings.DisplayMode, _powerSourceService);
@@ -72,34 +83,52 @@ public sealed class TrayPopupForm : Form
 
     private void BuildView()
     {
-        var content = new TableLayoutPanel
+        _content = new TableLayoutPanel
         {
             BackColor = BackgroundColor,
             ColumnCount = 1,
             Dock = DockStyle.Fill,
             Margin = Padding.Empty,
             Padding = new Padding(16, 12, 16, 12),
-            RowCount = 7
+            RowCount = 6
         };
 
-        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F)); // Header
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 124F)); // Performance
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 146F)); // Fan
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 74F)); // Display
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F)); // Battery
-        content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // Status
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F)); // Footer
+        // Every row is a fixed height, so the popup's height is their sum.
+        _content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F)); // Header
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, PerformanceBaseRowHeight)); // Performance
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 146F)); // Fan
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 74F)); // Display
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F)); // Battery
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F)); // Footer
 
-        content.Controls.Add(CreateAppHeader(), 0, 0);
-        content.Controls.Add(_performanceSection, 0, 1);
-        content.Controls.Add(_fanSection, 0, 2);
-        content.Controls.Add(_displaySection, 0, 3);
-        content.Controls.Add(_batterySection, 0, 4);
-        content.Controls.Add(_statusSection, 0, 5);
-        content.Controls.Add(CreateFooter(), 0, 6);
+        _content.Controls.Add(CreateAppHeader(), 0, 0);
+        _content.Controls.Add(_performanceSection, 0, 1);
+        _content.Controls.Add(_fanSection, 0, 2);
+        _content.Controls.Add(_displaySection, 0, 3);
+        _content.Controls.Add(_batterySection, 0, 4);
+        _content.Controls.Add(_footerLabel, 0, 5);
 
-        Controls.Add(content);
+        Controls.Add(_content);
+
+        ResizeForPerformanceRow(_performanceSection.IsCustomRowShown);
+    }
+
+    // The Custom boost row makes the Performance row taller. Grow or shrink
+    // the popup to match, then re-anchor it to the taskbar so it does not
+    // end up floating or overlapping it.
+    private void ResizeForPerformanceRow(bool customRowShown)
+    {
+        _content.RowStyles[1].Height = PerformanceBaseRowHeight +
+            (customRowShown ? CustomBoostRow.RowHeight : 0);
+
+        var contentHeight = _content.Padding.Vertical +
+            _content.RowStyles.Cast<RowStyle>().Sum(row => row.Height);
+
+        ClientSize = new Size(ClientSize.Width, (int)contentHeight);
+
+        if (Visible)
+            Location = TaskbarPlacement.GetPopupLocation(Size);
     }
 
     private Control CreateAppHeader()
@@ -132,15 +161,28 @@ public sealed class TrayPopupForm : Form
         return header;
     }
 
-    private Control CreateFooter() => new Label
+    private static readonly Color FooterColor = Color.FromArgb(145, 145, 145);
+    private static readonly string FooterText =
+        $"RazerHelper  |  {DeviceSupportService.SupportedModelName}";
+
+    private static Label CreateFooterLabel() => new()
     {
         AutoSize = true,
         Dock = DockStyle.Left,
         Font = CreateDesignFont("Segoe UI", 8.5F),
-        ForeColor = Color.FromArgb(145, 145, 145),
-        Text = $"RazerHelper  |  {DeviceSupportService.SupportedModelName}",
+        ForeColor = FooterColor,
+        Text = FooterText,
         TextAlign = ContentAlignment.MiddleLeft
     };
+
+    // There is no status panel: successes are visible in the controls
+    // themselves, so only failures are worth words. They take over the footer
+    // in red until the next result replaces them.
+    private void ShowStatus(SectionStatus status)
+    {
+        _footerLabel.ForeColor = status.IsError ? Color.IndianRed : FooterColor;
+        _footerLabel.Text = status.IsError ? status.Message : FooterText;
+    }
 
     private void ReportUnsupportedDevice()
     {
@@ -149,9 +191,8 @@ public sealed class TrayPopupForm : Form
 
         AppLog.Error($"{DeviceSupportService.SupportedModelName} control interface not found.");
 
-        _statusSection.ShowStatus(new SectionStatus(
-            $"{DeviceSupportService.SupportedModelName} not detected. " +
-            "Fan readings and the battery limit are unavailable; display controls still work.",
+        ShowStatus(new SectionStatus(
+            $"{DeviceSupportService.SupportedModelName} not detected; fan and battery controls unavailable.",
             IsError: true));
     }
 
@@ -170,8 +211,17 @@ public sealed class TrayPopupForm : Form
     private void BatterySection_ChargeLimitApplied(object? sender, int limit) =>
         SaveSettings(_settings with { BatteryChargeLimit = limit });
 
+    private void PerformanceSection_CpuBoostApplied(object? sender, CpuBoost level) =>
+        SaveSettings(_settings with { CustomCpuBoost = level.ToString() });
+
+    private void PerformanceSection_GpuBoostApplied(object? sender, GpuBoost level) =>
+        SaveSettings(_settings with { CustomGpuBoost = level.ToString() });
+
+    private void PerformanceSection_CustomRowVisibilityChanged(object? sender, bool shown) =>
+        ResizeForPerformanceRow(shown);
+
     private void Section_StatusChanged(object? sender, SectionStatus status) =>
-        _statusSection.ShowStatus(status);
+        ShowStatus(status);
 
     private void HideWhenInactive()
     {
