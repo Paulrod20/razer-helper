@@ -1,6 +1,7 @@
 using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
+using RazerHelper.UI.Sections;
 using static RazerHelper.UI.UiControls;
 using static RazerHelper.UI.UiTheme;
 
@@ -8,26 +9,27 @@ namespace RazerHelper.UI.Forms;
 
 public sealed class TrayPopupForm : Form
 {
-    private const int DefaultBatteryLimit = 100;
-
     private bool _allowClose;
     private static readonly DisplayService _displayService = new();
     private readonly PowerSourceService _powerSourceService = new();
     private readonly FanTelemetryService _fanTelemetryService = new();
-    private readonly BatteryChargeLimitService _batteryChargeLimitService = new();
     private readonly SettingsService _settingsService = new();
     private readonly System.Windows.Forms.Timer _fanTelemetryTimer = new()
     {
         Interval = 2_000
     };
+    private readonly BatterySection _batterySection;
     private AppSettings _settings;
     private bool _isAutoRefreshEnabled;
     private bool _fanRefreshInProgress;
-    private bool _batteryUpdateInProgress;
 
     public TrayPopupForm()
     {
         _settings = _settingsService.Load();
+
+        _batterySection = new BatterySection(_settings.BatteryChargeLimit);
+        _batterySection.ChargeLimitApplied += BatterySection_ChargeLimitApplied;
+        _batterySection.StatusChanged += Section_StatusChanged;
 
         // Keep the tray popup's design surface stable across display scales.
         AutoScaleMode = AutoScaleMode.None;
@@ -42,7 +44,7 @@ public sealed class TrayPopupForm : Form
 
         RestoreDisplaySetting();
         UpdateDisplayStatus();
-        _ = RestoreBatteryChargeLimitAsync();
+        _ = _batterySection.RestoreAsync();
 
         _powerSourceService.PowerSourceChanged += PowerSourceService_PowerSourceChanged;
         _fanTelemetryTimer.Tick += FanTelemetryTimer_Tick;
@@ -95,7 +97,7 @@ public sealed class TrayPopupForm : Form
         content.Controls.Add(CreatePerformanceSection(), 0, 1);
         content.Controls.Add(CreateFanSection(), 0, 2);
         content.Controls.Add(CreateDisplaySection(), 0, 3);
-        content.Controls.Add(CreateBatterySection(), 0, 4);
+        content.Controls.Add(_batterySection, 0, 4);
         content.Controls.Add(CreateStatusSection(), 0, 5);
         content.Controls.Add(CreateFooter(), 0, 6);
 
@@ -189,117 +191,6 @@ public sealed class TrayPopupForm : Form
 
         section.Controls.Add(refreshRates);
         section.Controls.Add(header);
-        return section;
-    }
-
-    private Control CreateBatterySection()
-    {
-        var initialBatteryLimit = NormalizeBatteryLimit(
-            _settings.BatteryChargeLimit ?? DefaultBatteryLimit);
-        var section = CreateSectionPanel();
-        var header = new TableLayoutPanel
-        {
-            BackColor = BackgroundColor,
-            ColumnCount = 2,
-            Dock = DockStyle.Top,
-            Height = 28,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-            RowCount = 1
-        };
-
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-
-        var title = CreateSectionLabel("Battery Charge Limit");
-        var charge = new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.None,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
-            ForeColor = Color.Silver,
-            Name = "batteryStatusLabel",
-            Text = "Charge: ",
-            TextAlign = ContentAlignment.MiddleRight
-        };
-        var limit = new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.None,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
-            ForeColor = RazerGreen,
-            Name = "batteryLimitLabel",
-            Text = $"{initialBatteryLimit}%",
-            TextAlign = ContentAlignment.MiddleRight
-        };
-
-        var batteryValues = new FlowLayoutPanel
-        {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Right,
-            FlowDirection = FlowDirection.LeftToRight,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-            WrapContents = false
-        };
-
-        limit.Margin = new Padding(6, 0, 0, 0);
-
-        batteryValues.Controls.Add(charge);
-        batteryValues.Controls.Add(limit);
-
-        header.Controls.Add(title, 0, 0);
-        header.Controls.Add(batteryValues, 1, 0);
-
-        var slider = new TrackBar
-        {
-            BackColor = BackgroundColor,
-            Dock = DockStyle.Top,
-            LargeChange = 20,
-            Maximum = 100,
-            Minimum = 60,
-            Name = "batteryLimitSlider",
-            Height = 46,
-            SmallChange = 20,
-            TickFrequency = 20,
-            Value = initialBatteryLimit
-        };
-        slider.ValueChanged += (_, _) =>
-        {
-            var snappedValue = (int)Math.Round(
-                (slider.Value - slider.Minimum) / 20D,
-                MidpointRounding.AwayFromZero) * 20 + slider.Minimum;
-
-            snappedValue = Math.Clamp(
-                snappedValue,
-                slider.Minimum,
-                slider.Maximum);
-
-            if (slider.Value != snappedValue)
-            {
-                slider.Value = snappedValue;
-                return;
-            }
-
-            limit.Text = $"{slider.Value}%";
-        };
-        slider.MouseUp += async (_, _) =>
-            await CommitBatteryChargeLimitAsync(slider);
-        slider.KeyUp += async (_, _) =>
-            await CommitBatteryChargeLimitAsync(slider);
-
-        var spacer = new Panel
-        {
-            BackColor = BackgroundColor,
-            Dock = DockStyle.Top,
-            Height = 5
-        };
-
-        section.Controls.Add(slider);
-        section.Controls.Add(spacer);
-        section.Controls.Add(header);
-
         return section;
     }
 
@@ -439,81 +330,11 @@ public sealed class TrayPopupForm : Form
         _settingsService.Save(settings);
     }
 
-    private static int NormalizeBatteryLimit(int value)
-    {
-        var clampedValue = Math.Clamp(value, 60, 100);
-        return (int)Math.Round(
-            (clampedValue - 60) / 20D,
-            MidpointRounding.AwayFromZero) * 20 + 60;
-    }
+    private void BatterySection_ChargeLimitApplied(object? sender, int limit) =>
+        SaveSettings(_settings with { BatteryChargeLimit = limit });
 
-    private async Task CommitBatteryChargeLimitAsync(TrackBar slider)
-    {
-        if (_batteryUpdateInProgress)
-            return;
-
-        var requestedLimit = slider.Value;
-        var previousLimit = _settings.BatteryChargeLimit;
-
-        // MouseUp and KeyUp fire for any click or key press, not only when the
-        // value moved. The saved limit is only updated after a confirmed write,
-        // so matching it means the EC already has this value.
-        if (requestedLimit == previousLimit)
-            return;
-
-        _batteryUpdateInProgress = true;
-        slider.Enabled = false;
-
-        try
-        {
-            await _batteryChargeLimitService.SetChargeLimitAsync(requestedLimit);
-
-            SaveSettings(_settings with
-            {
-                BatteryChargeLimit = requestedLimit
-            });
-
-            SetStatusMessage(requestedLimit == 100
-                ? "Battery charge limit disabled. Charging is allowed to 100%."
-                : $"Battery charge limit set to {requestedLimit}%.");
-        }
-        catch (Exception exception)
-        {
-            AppLog.Error(
-                $"Battery charge-limit change to {requestedLimit}% failed.",
-                exception);
-
-            slider.Value = NormalizeBatteryLimit(
-                previousLimit ?? DefaultBatteryLimit);
-
-            SetStatusMessage(
-                "Could not change the battery charge limit.",
-                isError: true);
-        }
-        finally
-        {
-            slider.Enabled = true;
-            _batteryUpdateInProgress = false;
-        }
-    }
-
-    private async Task RestoreBatteryChargeLimitAsync()
-    {
-        if (_settings.BatteryChargeLimit is not int savedLimit)
-            return;
-
-        try
-        {
-            await _batteryChargeLimitService.SetChargeLimitAsync(
-                NormalizeBatteryLimit(savedLimit));
-        }
-        catch (Exception exception)
-        {
-            AppLog.Error(
-                $"Could not restore the saved battery charge limit ({savedLimit}%).",
-                exception);
-        }
-    }
+    private void Section_StatusChanged(object? sender, SectionStatus status) =>
+        SetStatusMessage(status.Message, status.IsError);
 
     private void SetStatusMessage(string message, bool isError = false)
     {
@@ -668,7 +489,6 @@ public sealed class TrayPopupForm : Form
         _fanTelemetryTimer.Tick -= FanTelemetryTimer_Tick;
         _fanTelemetryTimer.Dispose();
         _fanTelemetryService.Dispose();
-        _batteryChargeLimitService.Dispose();
 
         base.OnFormClosing(e);
     }
