@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using System.Diagnostics;
+using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Hardware;
 using RazerHelper.Core.Models;
 
@@ -14,17 +14,33 @@ public sealed class FanTelemetryService : IDisposable
     private readonly RazerHidTransport _transport = new();
     private FanRpmReading? _publishedReading;
     private bool _stoppedReadingPending;
+    private bool _readFailing;
 
     public Task<FanRpmReading?> ReadAsync() => Task.Run(() =>
     {
         try
         {
-            return Read();
+            var reading = Read();
+
+            if (_readFailing)
+            {
+                _readFailing = false;
+                AppLog.Info("Fan telemetry recovered.");
+            }
+
+            return reading;
         }
         catch (Exception exception) when (
             exception is InvalidOperationException or Win32Exception)
         {
-            Debug.WriteLine($"Fan telemetry is temporarily unavailable: {exception}");
+            // Polled every couple of seconds: log only the first failure of a
+            // streak so a disconnected device does not flood the log.
+            if (!_readFailing)
+            {
+                _readFailing = true;
+                AppLog.Error("Fan telemetry is temporarily unavailable.", exception);
+            }
+
             return _publishedReading;
         }
     });

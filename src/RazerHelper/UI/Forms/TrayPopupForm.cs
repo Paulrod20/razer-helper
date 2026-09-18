@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
 
@@ -590,8 +591,9 @@ public sealed class TrayPopupForm : Form
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Debug.WriteLine(
-                $"Battery charge-limit change failed: {exception}");
+            AppLog.Error(
+                $"Battery charge-limit change to {requestedLimit}% failed.",
+                exception);
 
             slider.Value = NormalizeBatteryLimit(
                 previousLimit ?? DefaultBatteryLimit);
@@ -619,8 +621,9 @@ public sealed class TrayPopupForm : Form
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Debug.WriteLine(
-                $"Could not restore the saved battery charge limit: {exception}");
+            AppLog.Error(
+                $"Could not restore the saved battery charge limit ({savedLimit}%).",
+                exception);
         }
     }
 
@@ -723,8 +726,7 @@ public sealed class TrayPopupForm : Form
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Debug.WriteLine(
-                $"Fan telemetry read failed: {exception}");
+            AppLog.Error("Fan telemetry read failed unexpectedly.", exception);
 
             if (Visible)
             {

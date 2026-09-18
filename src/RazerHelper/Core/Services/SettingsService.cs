@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.Text.Json;
+using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Models;
 
 namespace RazerHelper.Core.Services;
@@ -38,7 +38,7 @@ public sealed class SettingsService
             UnauthorizedAccessException or
             JsonException)
         {
-            Debug.WriteLine($"Could not load RazerHelper settings: {exception}");
+            AppLog.Error("Could not load RazerHelper settings.", exception);
             return new AppSettings();
         }
     }
@@ -59,7 +59,7 @@ public sealed class SettingsService
             exception is IOException or
             UnauthorizedAccessException)
         {
-            Debug.WriteLine($"Could not save RazerHelper settings: {exception}");
+            AppLog.Error("Could not save RazerHelper settings.", exception);
         }
     }
 }
