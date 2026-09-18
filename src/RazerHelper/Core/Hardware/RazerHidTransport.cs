@@ -48,6 +48,11 @@ internal sealed class RazerHidTransport : IDisposable
         }
     }
 
+    public static bool IsSupportedDevicePresent() =>
+        DeviceList.Local
+            .GetHidDevices(RazerVendorId, Blade16_2023ProductId)
+            .Any();
+
     public void Dispose()
     {
         lock (DeviceSyncRoot)
@@ -65,10 +70,14 @@ internal sealed class RazerHidTransport : IDisposable
         if (_deviceHandle is not null)
             return;
 
+        var foundAnyDevice = false;
+
         foreach (var device in DeviceList.Local.GetHidDevices(
             RazerVendorId,
             Blade16_2023ProductId))
         {
+            foundAnyDevice = true;
+
             var reportLength = device.GetMaxFeatureReportLength();
 
             if (reportLength < RazerHidPacket.MinimumFeatureReportLength)
@@ -108,6 +117,11 @@ internal sealed class RazerHidTransport : IDisposable
                 Disconnect();
             }
         }
+
+        // Distinguish "wrong machine" from "right machine, interface not
+        // answering" so callers and logs can tell them apart.
+        if (!foundAnyDevice)
+            throw new RazerDeviceNotFoundException(RazerVendorId, Blade16_2023ProductId);
 
         throw new InvalidOperationException(
             "The Razer Blade 16 (2023) control interface did not respond " +

@@ -1,3 +1,4 @@
+using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
 using RazerHelper.UI.Sections;
@@ -35,6 +36,7 @@ public sealed class TrayPopupForm : Form
 
         ApplyTheme();
         BuildView();
+        ReportUnsupportedDevice();
 
         _displaySection.Restore();
         _ = _batterySection.RestoreAsync();
@@ -130,9 +132,22 @@ public sealed class TrayPopupForm : Form
         Dock = DockStyle.Left,
         Font = CreateDesignFont("Segoe UI", 8.5F),
         ForeColor = Color.FromArgb(145, 145, 145),
-        Text = "RazerHelper  |  Blade 16 (2023)",
+        Text = $"RazerHelper  |  {DeviceSupportService.SupportedModelName}",
         TextAlign = ContentAlignment.MiddleLeft
     };
+
+    private void ReportUnsupportedDevice()
+    {
+        if (new DeviceSupportService().IsSupportedDevicePresent())
+            return;
+
+        AppLog.Error($"{DeviceSupportService.SupportedModelName} control interface not found.");
+
+        _statusSection.ShowStatus(new SectionStatus(
+            $"{DeviceSupportService.SupportedModelName} not detected. " +
+            "Fan readings and the battery limit are unavailable; display controls still work.",
+            IsError: true));
+    }
 
     private void SaveSettings(AppSettings settings)
     {
