@@ -35,6 +35,12 @@ public sealed class TrayPopupForm : Form
 
         ApplyTheme();
         BuildView();
+
+        // The popup lives in the tray and is not shown at startup. Create its
+        // window handle now so BeginInvoke works for power events before the
+        // popup has been opened for the first time.
+        CreateHandle();
+
         RestoreDisplaySetting();
         UpdateDisplayStatus();
         _ = RestoreBatteryChargeLimitAsync();
