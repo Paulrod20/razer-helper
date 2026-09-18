@@ -47,6 +47,17 @@ internal static class RazerHidPacket
     public static bool IsBusyResponse(byte[] response) =>
         response.Length >= MinimumFeatureReportLength && response[1] == 0x01;
 
+    public static bool IsNotSupportedResponse(
+        byte[] response,
+        ushort command)
+    {
+        return response.Length >= MinimumFeatureReportLength &&
+               response[1] == 0x05 &&
+               response[2] == TransactionId &&
+               response[7] == (byte)(command >> 8) &&
+               response[8] == (byte)command;
+    }
+
     public static byte GetArgument(byte[] response, int index)
     {
         if (index is < 0 or >= 80)

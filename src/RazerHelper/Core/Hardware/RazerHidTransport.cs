@@ -35,6 +35,11 @@ internal sealed class RazerHidTransport : IDisposable
                 EnsureConnected();
                 return Exchange(command, arguments);
             }
+            catch (RazerCommandNotSupportedException)
+            {
+                // The device is reachable; keep the connection for other commands.
+                throw;
+            }
             catch
             {
                 Disconnect();
@@ -136,6 +141,11 @@ internal sealed class RazerHidTransport : IDisposable
 
             if (RazerHidPacket.IsMatchingSuccessfulResponse(response, command))
                 return response;
+
+            // Retrying cannot change the answer, so fail immediately instead
+            // of holding the shared device lock for several retry delays.
+            if (RazerHidPacket.IsNotSupportedResponse(response, command))
+                throw new RazerCommandNotSupportedException(command);
 
             if (attempt < maximumAttempts - 1)
             {
