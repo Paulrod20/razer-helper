@@ -1,4 +1,3 @@
-using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
 using RazerHelper.UI.Sections;
@@ -10,20 +9,17 @@ namespace RazerHelper.UI.Forms;
 public sealed class TrayPopupForm : Form
 {
     private bool _allowClose;
-    private readonly FanTelemetryService _fanTelemetryService = new();
     private readonly SettingsService _settingsService = new();
-    private readonly System.Windows.Forms.Timer _fanTelemetryTimer = new()
-    {
-        Interval = 2_000
-    };
     private readonly BatterySection _batterySection;
     private readonly DisplaySection _displaySection;
+    private readonly FanSection _fanSection;
     private AppSettings _settings;
-    private bool _fanRefreshInProgress;
 
     public TrayPopupForm()
     {
         _settings = _settingsService.Load();
+
+        _fanSection = new FanSection();
 
         _displaySection = new DisplaySection(_settings.DisplayMode);
         _displaySection.DisplayModeChanged += DisplaySection_DisplayModeChanged;
@@ -45,8 +41,6 @@ public sealed class TrayPopupForm : Form
 
         _displaySection.Restore();
         _ = _batterySection.RestoreAsync();
-
-        _fanTelemetryTimer.Tick += FanTelemetryTimer_Tick;
 
         Deactivate += (_, _) => BeginInvoke(HideWhenInactive);
     }
@@ -94,7 +88,7 @@ public sealed class TrayPopupForm : Form
 
         content.Controls.Add(CreateAppHeader(), 0, 0);
         content.Controls.Add(CreatePerformanceSection(), 0, 1);
-        content.Controls.Add(CreateFanSection(), 0, 2);
+        content.Controls.Add(_fanSection, 0, 2);
         content.Controls.Add(_displaySection, 0, 3);
         content.Controls.Add(_batterySection, 0, 4);
         content.Controls.Add(CreateStatusSection(), 0, 5);
@@ -143,18 +137,6 @@ public sealed class TrayPopupForm : Form
         return section;
     }
 
-    private Control CreateFanSection()
-    {
-        var section = CreateSectionPanel();
-        var controls = CreateButtonGrid(["Auto", "Max", "Manual"], "FanButton");
-        var readings = CreateFanReadings();
-
-        section.Controls.Add(controls);
-        section.Controls.Add(readings);
-        section.Controls.Add(CreateSectionHeader("Fan Control", string.Empty));
-        return section;
-    }
-
     private Control CreateStatusSection()
     {
         var section = CreateSectionPanel();
@@ -184,29 +166,6 @@ public sealed class TrayPopupForm : Form
         Font = CreateDesignFont("Segoe UI", 8.5F),
         ForeColor = Color.FromArgb(145, 145, 145),
         Text = "RazerHelper  |  Blade 16 (2023)",
-        TextAlign = ContentAlignment.MiddleLeft
-    };
-
-    private static Control CreateFanReadings()
-    {
-        var readings = CreateTwoColumnLayout(50F, 50F);
-        readings.Dock = DockStyle.Top;
-        readings.Height = 24;
-        readings.Padding = new Padding(0, 0, 0, 2);
-
-        readings.Controls.Add(CreateReadingLabel("CPU Fan: -- RPM", "cpuFanLabel", DockStyle.Left), 0, 0);
-        readings.Controls.Add(CreateReadingLabel("GPU Fan: -- RPM", "gpuFanLabel", DockStyle.Right), 1, 0);
-        return readings;
-    }
-
-    private static Label CreateReadingLabel(string text, string name, DockStyle dock) => new()
-    {
-        AutoSize = true,
-        Dock = dock,
-        Font = CreateDesignFont("Segoe UI", 9.5F),
-        ForeColor = Color.Silver,
-        Name = name,
-        Text = text,
         TextAlign = ContentAlignment.MiddleLeft
     };
 
@@ -244,52 +203,6 @@ public sealed class TrayPopupForm : Form
             Hide();
     }
 
-    private async void FanTelemetryTimer_Tick(object? sender, EventArgs e) =>
-        await RefreshFanReadingsAsync();
-
-    private async Task RefreshFanReadingsAsync()
-    {
-        if (_fanRefreshInProgress)
-            return;
-
-        _fanRefreshInProgress = true;
-
-        try
-        {
-            var reading = await _fanTelemetryService.ReadAsync();
-
-            if (!Visible || reading is null)
-                return;
-
-            SetFanReading("cpuFanLabel", "CPU Fan", reading.CpuFanRpm);
-            SetFanReading("gpuFanLabel", "GPU Fan", reading.GpuFanRpm);
-        }
-        catch (Exception exception)
-        {
-            AppLog.Error("Fan telemetry read failed unexpectedly.", exception);
-
-            if (Visible)
-            {
-                SetFanReading("cpuFanLabel", "CPU Fan", null);
-                SetFanReading("gpuFanLabel", "GPU Fan", null);
-            }
-        }
-        finally
-        {
-            _fanRefreshInProgress = false;
-        }
-    }
-
-    private void SetFanReading(string controlName, string label, int? rpm)
-    {
-        var control = Controls.Find(controlName, true)
-            .OfType<Label>()
-            .FirstOrDefault();
-
-        if (control is not null)
-            control.Text = rpm is null ? $"{label}: -- RPM" : $"{label}: {rpm} RPM";
-    }
-
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (!_allowClose)
@@ -299,11 +212,6 @@ public sealed class TrayPopupForm : Form
             return;
         }
 
-        _fanTelemetryTimer.Stop();
-        _fanTelemetryTimer.Tick -= FanTelemetryTimer_Tick;
-        _fanTelemetryTimer.Dispose();
-        _fanTelemetryService.Dispose();
-
         base.OnFormClosing(e);
     }
 
@@ -312,13 +220,8 @@ public sealed class TrayPopupForm : Form
         base.OnVisibleChanged(e);
 
         if (Visible)
-        {
-            _fanTelemetryTimer.Start();
-            _ = RefreshFanReadingsAsync();
-        }
+            _fanSection.StartPolling();
         else
-        {
-            _fanTelemetryTimer.Stop();
-        }
+            _fanSection.StopPolling();
     }
 }
