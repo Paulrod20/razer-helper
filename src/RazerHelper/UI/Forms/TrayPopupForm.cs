@@ -11,6 +11,7 @@ namespace RazerHelper.UI.Forms;
 public sealed class TrayPopupForm : Form
 {
     private const int PerformanceBaseRowHeight = 124;
+    private const int FanRowHeight = 62; // Header and readouts only; no fan controls yet.
 
     private bool _allowClose;
     private readonly SettingsService _settingsService = new();
@@ -72,9 +73,7 @@ public sealed class TrayPopupForm : Form
         BackColor = BackgroundColor;
         ForeColor = Color.White;
         Font = CreateDesignFont("Segoe UI", 9F);
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
-        MinimizeBox = false;
+        FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         ClientSize = new Size(560, 600);
         Text = "RazerHelper";
@@ -97,7 +96,7 @@ public sealed class TrayPopupForm : Form
         _content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F)); // Header
         _content.RowStyles.Add(new RowStyle(SizeType.Absolute, PerformanceBaseRowHeight)); // Performance
-        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 146F)); // Fan
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, FanRowHeight)); // Fan
         _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 74F)); // Display
         _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F)); // Battery
         _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F)); // Footer
@@ -131,35 +130,17 @@ public sealed class TrayPopupForm : Form
             Location = TaskbarPlacement.GetPopupLocation(Size);
     }
 
-    private Control CreateAppHeader()
+    // Temperatures are left out until there is a trustworthy CPU temperature
+    // source; a permanent "-- C" only looks broken.
+    private static Control CreateAppHeader() => new Label
     {
-        var header = CreateTwoColumnLayout(60F, 40F);
-
-        var title = new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Left,
-            Font = CreateDesignFont("Segoe UI", 12F, FontStyle.Bold),
-            ForeColor = RazerGreen,
-            Text = "RazerHelper",
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-
-        var temperatures = new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Right,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
-            ForeColor = Color.Silver,
-            Name = "temperatureLabel",
-            Text = "CPU: -- C   GPU: -- C",
-            TextAlign = ContentAlignment.MiddleRight
-        };
-
-        header.Controls.Add(title, 0, 0);
-        header.Controls.Add(temperatures, 1, 0);
-        return header;
-    }
+        AutoSize = true,
+        Dock = DockStyle.Left,
+        Font = CreateDesignFont("Segoe UI", 12F, FontStyle.Bold),
+        ForeColor = RazerGreen,
+        Text = "RazerHelper",
+        TextAlign = ContentAlignment.MiddleLeft
+    };
 
     private static readonly Color FooterColor = Color.FromArgb(145, 145, 145);
     private static readonly string FooterText =
@@ -227,6 +208,26 @@ public sealed class TrayPopupForm : Form
     {
         if (!_allowClose && Visible && !ContainsFocus)
             Hide();
+    }
+
+    // A borderless window has no shadow of its own; ask for the standard one
+    // so the popup lifts off whatever is behind it.
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            const int ClassDropShadow = 0x00020000;
+
+            var parameters = base.CreateParams;
+            parameters.ClassStyle |= ClassDropShadow;
+            return parameters;
+        }
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        WindowChrome.Apply(Handle, BorderColor);
     }
 
     protected override void Dispose(bool disposing)

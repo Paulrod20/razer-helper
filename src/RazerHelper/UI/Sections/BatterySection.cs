@@ -17,7 +17,7 @@ internal sealed class BatterySection : Panel
     private const int MaximumLimit = 100;
 
     private readonly BatteryChargeLimitService _chargeLimitService = new();
-    private readonly TrackBar _slider;
+    private readonly ThemedSlider _slider;
     private readonly Label _limitLabel;
 
     // The limit the EC last confirmed (or the saved one, until the first
@@ -88,22 +88,14 @@ internal sealed class BatterySection : Panel
         header.Controls.Add(CreateSectionLabel("Battery Charge Limit"), 0, 0);
         header.Controls.Add(batteryValues, 1, 0);
 
-        _slider = new TrackBar
+        _slider = new ThemedSlider(MinimumLimit, MaximumLimit, LimitStep)
         {
-            BackColor = BackgroundColor,
             Dock = DockStyle.Top,
-            LargeChange = LimitStep,
-            Maximum = MaximumLimit,
-            Minimum = MinimumLimit,
-            Height = 46,
-            SmallChange = LimitStep,
-            TickFrequency = LimitStep,
             Value = initialLimit
         };
 
-        _slider.ValueChanged += Slider_ValueChanged;
-        _slider.MouseUp += async (_, _) => await CommitAsync();
-        _slider.KeyUp += async (_, _) => await CommitAsync();
+        _slider.ValueChanged += (_, _) => _limitLabel.Text = $"{_slider.Value}%";
+        _slider.Committed += async (_, _) => await CommitAsync();
 
         var spacer = new Panel
         {
@@ -147,19 +139,6 @@ internal sealed class BatterySection : Panel
             _chargeLimitService.Dispose();
 
         base.Dispose(disposing);
-    }
-
-    private void Slider_ValueChanged(object? sender, EventArgs e)
-    {
-        var snappedValue = NormalizeLimit(_slider.Value);
-
-        if (_slider.Value != snappedValue)
-        {
-            _slider.Value = snappedValue;
-            return;
-        }
-
-        _limitLabel.Text = $"{_slider.Value}%";
     }
 
     private async Task CommitAsync()

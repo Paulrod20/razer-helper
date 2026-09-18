@@ -6,8 +6,8 @@ using static RazerHelper.UI.UiTheme;
 namespace RazerHelper.UI.Sections;
 
 /// <summary>
-/// Fan readout and (not yet functional) fan mode buttons. Owns the telemetry
-/// service and polls it only while the host says the popup is visible.
+/// CPU and GPU fan speed readout. Owns the telemetry service and polls it
+/// only while the host says the popup is visible.
 /// </summary>
 internal sealed class FanSection : Panel
 {
@@ -41,9 +41,8 @@ internal sealed class FanSection : Panel
         readings.Controls.Add(_cpuFanLabel, 0, 0);
         readings.Controls.Add(_gpuFanLabel, 1, 0);
 
-        Controls.Add(CreateButtonGrid(["Auto", "Max", "Manual"], "FanButton"));
         Controls.Add(readings);
-        Controls.Add(CreateSectionHeader("Fan Control", string.Empty));
+        Controls.Add(CreateSectionHeader("Fans", string.Empty));
 
         _pollTimer.Tick += PollTimer_Tick;
     }
