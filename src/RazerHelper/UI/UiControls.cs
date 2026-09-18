@@ -92,6 +92,19 @@ internal static class UiControls
         return grid;
     }
 
+    /// <summary>Highlights <paramref name="selected"/> and resets the rest; null clears the selection.</summary>
+    public static void HighlightSelected(IEnumerable<Button> buttons, Button? selected)
+    {
+        foreach (var button in buttons)
+        {
+            var isSelected = ReferenceEquals(button, selected);
+
+            button.BackColor = isSelected ? RazerGreen : ButtonColor;
+            button.ForeColor = isSelected ? BackgroundColor : Color.White;
+            button.FlatAppearance.BorderColor = isSelected ? RazerGreen : BorderColor;
+        }
+    }
+
     public static Button CreateActionButton(string text)
     {
         var button = new Button

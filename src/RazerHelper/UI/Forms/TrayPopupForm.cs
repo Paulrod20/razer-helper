@@ -11,10 +11,11 @@ public sealed class TrayPopupForm : Form
 {
     private bool _allowClose;
     private readonly SettingsService _settingsService = new();
+    private readonly PowerSourceService _powerSourceService = new();
     private readonly BatterySection _batterySection;
     private readonly DisplaySection _displaySection;
     private readonly FanSection _fanSection;
-    private readonly PerformanceSection _performanceSection = new();
+    private readonly PerformanceSection _performanceSection;
     private readonly StatusSection _statusSection = new();
     private AppSettings _settings;
 
@@ -24,7 +25,11 @@ public sealed class TrayPopupForm : Form
 
         _fanSection = new FanSection();
 
-        _displaySection = new DisplaySection(_settings.DisplayMode);
+        _performanceSection = new PerformanceSection(_settings.PerformanceMode, _powerSourceService);
+        _performanceSection.ModeApplied += PerformanceSection_ModeApplied;
+        _performanceSection.StatusChanged += Section_StatusChanged;
+
+        _displaySection = new DisplaySection(_settings.DisplayMode, _powerSourceService);
         _displaySection.DisplayModeChanged += DisplaySection_DisplayModeChanged;
 
         _batterySection = new BatterySection(_settings.BatteryChargeLimit);
@@ -40,6 +45,7 @@ public sealed class TrayPopupForm : Form
 
         _displaySection.Restore();
         _ = _batterySection.RestoreAsync();
+        _ = _performanceSection.RestoreAsync();
 
         Deactivate += (_, _) => BeginInvoke(HideWhenInactive);
     }
@@ -158,6 +164,9 @@ public sealed class TrayPopupForm : Form
     private void DisplaySection_DisplayModeChanged(object? sender, string mode) =>
         SaveSettings(_settings with { DisplayMode = mode });
 
+    private void PerformanceSection_ModeApplied(object? sender, PerformanceMode mode) =>
+        SaveSettings(_settings with { PerformanceMode = mode.ToString() });
+
     private void BatterySection_ChargeLimitApplied(object? sender, int limit) =>
         SaveSettings(_settings with { BatteryChargeLimit = limit });
 
@@ -168,6 +177,15 @@ public sealed class TrayPopupForm : Form
     {
         if (!_allowClose && Visible && !ContainsFocus)
             Hide();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        // Sections unsubscribe from the shared service as they are disposed.
+        base.Dispose(disposing);
+
+        if (disposing)
+            _powerSourceService.Dispose();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -187,7 +205,12 @@ public sealed class TrayPopupForm : Form
         base.OnVisibleChanged(e);
 
         if (Visible)
+        {
             _fanSection.StartPolling();
+
+            // Fn+P changes the mode without telling us; show what the EC has.
+            _ = _performanceSection.RefreshAsync();
+        }
         else
             _fanSection.StopPolling();
     }

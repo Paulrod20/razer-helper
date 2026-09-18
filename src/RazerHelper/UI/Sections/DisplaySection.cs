@@ -6,7 +6,7 @@ namespace RazerHelper.UI.Sections;
 
 /// <summary>
 /// Refresh-rate controls: fixed 60/120 Hz or Auto, which follows the power
-/// source. Owns the display and power-source services and reports the chosen
+/// source. Owns the display service, uses the shared power-source service, and reports the chosen
 /// mode through an event so the host can persist it.
 /// </summary>
 internal sealed class DisplaySection : Panel
@@ -16,7 +16,7 @@ internal sealed class DisplaySection : Panel
     private const int OnBatteryRefreshRateHz = 60;
 
     private readonly DisplayService _displayService = new();
-    private readonly PowerSourceService _powerSourceService = new();
+    private readonly PowerSourceService _powerSourceService;
     private readonly Label _statusLabel;
     private readonly Button[] _modeButtons;
     private readonly string? _savedMode;
@@ -27,9 +27,10 @@ internal sealed class DisplaySection : Panel
 
     private bool _isAutoEnabled;
 
-    public DisplaySection(string? savedMode)
+    public DisplaySection(string? savedMode, PowerSourceService powerSourceService)
     {
         _savedMode = savedMode;
+        _powerSourceService = powerSourceService;
 
         // Read here rather than in a field initializer: those run before the
         // Control base constructor, which is what may install the context.
@@ -85,7 +86,6 @@ internal sealed class DisplaySection : Panel
         if (disposing)
         {
             _powerSourceService.PowerSourceChanged -= PowerSourceService_PowerSourceChanged;
-            _powerSourceService.Dispose();
         }
 
         base.Dispose(disposing);
@@ -158,19 +158,8 @@ internal sealed class DisplaySection : Panel
         }, null);
     }
 
-    private void SelectModeButton(Button selected)
-    {
-        foreach (var button in _modeButtons)
-        {
-            button.BackColor = ButtonColor;
-            button.ForeColor = Color.White;
-            button.FlatAppearance.BorderColor = BorderColor;
-        }
-
-        selected.BackColor = RazerGreen;
-        selected.ForeColor = BackgroundColor;
-        selected.FlatAppearance.BorderColor = RazerGreen;
-    }
+    private void SelectModeButton(Button selected) =>
+        HighlightSelected(_modeButtons, selected);
 
     private void ApplyAutoRefreshRate()
     {
