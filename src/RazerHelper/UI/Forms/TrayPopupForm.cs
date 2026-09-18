@@ -10,8 +10,6 @@ namespace RazerHelper.UI.Forms;
 public sealed class TrayPopupForm : Form
 {
     private bool _allowClose;
-    private static readonly DisplayService _displayService = new();
-    private readonly PowerSourceService _powerSourceService = new();
     private readonly FanTelemetryService _fanTelemetryService = new();
     private readonly SettingsService _settingsService = new();
     private readonly System.Windows.Forms.Timer _fanTelemetryTimer = new()
@@ -19,13 +17,16 @@ public sealed class TrayPopupForm : Form
         Interval = 2_000
     };
     private readonly BatterySection _batterySection;
+    private readonly DisplaySection _displaySection;
     private AppSettings _settings;
-    private bool _isAutoRefreshEnabled;
     private bool _fanRefreshInProgress;
 
     public TrayPopupForm()
     {
         _settings = _settingsService.Load();
+
+        _displaySection = new DisplaySection(_settings.DisplayMode);
+        _displaySection.DisplayModeChanged += DisplaySection_DisplayModeChanged;
 
         _batterySection = new BatterySection(_settings.BatteryChargeLimit);
         _batterySection.ChargeLimitApplied += BatterySection_ChargeLimitApplied;
@@ -42,11 +43,9 @@ public sealed class TrayPopupForm : Form
         // popup has been opened for the first time.
         CreateHandle();
 
-        RestoreDisplaySetting();
-        UpdateDisplayStatus();
+        _displaySection.Restore();
         _ = _batterySection.RestoreAsync();
 
-        _powerSourceService.PowerSourceChanged += PowerSourceService_PowerSourceChanged;
         _fanTelemetryTimer.Tick += FanTelemetryTimer_Tick;
 
         Deactivate += (_, _) => BeginInvoke(HideWhenInactive);
@@ -96,7 +95,7 @@ public sealed class TrayPopupForm : Form
         content.Controls.Add(CreateAppHeader(), 0, 0);
         content.Controls.Add(CreatePerformanceSection(), 0, 1);
         content.Controls.Add(CreateFanSection(), 0, 2);
-        content.Controls.Add(CreateDisplaySection(), 0, 3);
+        content.Controls.Add(_displaySection, 0, 3);
         content.Controls.Add(_batterySection, 0, 4);
         content.Controls.Add(CreateStatusSection(), 0, 5);
         content.Controls.Add(CreateFooter(), 0, 6);
@@ -156,44 +155,6 @@ public sealed class TrayPopupForm : Form
         return section;
     }
 
-    private Control CreateDisplaySection()
-    {
-        var section = CreateSectionPanel();
-
-        var header = CreateTwoColumnLayout(60F, 40F);
-        header.Dock = DockStyle.Top;
-        header.Height = 28;
-
-        header.Controls.Add(CreateSectionLabel("Display"), 0, 0);
-
-        header.Controls.Add(new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Right,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
-            ForeColor = Color.Silver,
-            Name = "displayStatusLabel",
-            Text = "Current: -- Hz",
-            TextAlign = ContentAlignment.MiddleRight
-        }, 1, 0);
-
-        var refreshRates = CreateButtonGrid(
-            ["60 Hz", "120 Hz", "Auto"],
-            "RefreshRateButton");
-
-        refreshRates.Name = "displayRefreshGrid";
-
-        foreach (var button in refreshRates.Controls.OfType<Button>())
-        {
-            button.Click += RefreshRateButton_Click;
-        }
-            
-
-        section.Controls.Add(refreshRates);
-        section.Controls.Add(header);
-        return section;
-    }
-
     private Control CreateStatusSection()
     {
         var section = CreateSectionPanel();
@@ -249,86 +210,14 @@ public sealed class TrayPopupForm : Form
         TextAlign = ContentAlignment.MiddleLeft
     };
 
-    private void RefreshRateButton_Click(object? sender, EventArgs e)
-    {
-        if (sender is not Button selected)
-            return;
-
-        var grid = Controls.Find("displayRefreshGrid", true)
-            .OfType<TableLayoutPanel>()
-            .FirstOrDefault();
-
-        var status = Controls.Find("displayStatusLabel", true)
-            .OfType<Label>()
-            .FirstOrDefault();
-
-        if (grid is null || status is null)
-            return;
-
-        if (selected.Text == "Auto")
-        {
-            _isAutoRefreshEnabled = true;
-            SelectRefreshRateButton(grid, selected);
-            SaveSettings(_settings with { DisplayMode = selected.Text });
-            ApplyAutoRefreshRate();
-            return;
-        }
-
-        _isAutoRefreshEnabled = false;
-
-        var refreshRateText = selected.Text.Replace(" Hz", string.Empty);
-
-        if (!int.TryParse(refreshRateText, out var requestedRefreshRate))
-        {
-            status.Text = "Invalid refresh-rate selection.";
-            return;
-        }
-
-        if (!_displayService.TrySetPrimaryRefreshRate(
-            requestedRefreshRate,
-            out var message))
-        {
-            status.Text = message;
-            return;
-        }
-
-        SelectRefreshRateButton(grid, selected);
-        SaveSettings(_settings with { DisplayMode = selected.Text });
-        UpdateDisplayStatus();
-    }
-
-    private void RestoreDisplaySetting()
-    {
-        if (string.IsNullOrWhiteSpace(_settings.DisplayMode))
-            return;
-
-        var grid = Controls.Find("displayRefreshGrid", true)
-            .OfType<TableLayoutPanel>()
-            .FirstOrDefault();
-
-        var selected = grid?.Controls
-            .OfType<Button>()
-            .FirstOrDefault(button =>
-                string.Equals(
-                    button.Text,
-                    _settings.DisplayMode,
-                    StringComparison.Ordinal));
-
-        if (grid is null || selected is null)
-            return;
-
-        SelectRefreshRateButton(grid, selected);
-        _isAutoRefreshEnabled = selected.Text == "Auto";
-
-        if (_isAutoRefreshEnabled)
-            ApplyAutoRefreshRate();
-    }
-
     private void SaveSettings(AppSettings settings)
     {
         _settings = settings;
         _settingsService.Save(settings);
     }
+
+    private void DisplaySection_DisplayModeChanged(object? sender, string mode) =>
+        SaveSettings(_settings with { DisplayMode = mode });
 
     private void BatterySection_ChargeLimitApplied(object? sender, int limit) =>
         SaveSettings(_settings with { BatteryChargeLimit = limit });
@@ -347,64 +236,6 @@ public sealed class TrayPopupForm : Form
 
         status.ForeColor = isError ? Color.IndianRed : Color.Silver;
         status.Text = message;
-    }
-
-    private void PowerSourceService_PowerSourceChanged(
-    object? sender,
-    EventArgs e)
-    {
-        if (!_isAutoRefreshEnabled || IsDisposed || !IsHandleCreated)
-            return;
-
-        BeginInvoke(ApplyAutoRefreshRate);
-    }
-
-    private static void SelectRefreshRateButton(
-    TableLayoutPanel grid,
-    Button selected)
-    {
-        foreach (var button in grid.Controls.OfType<Button>())
-        {
-            button.BackColor = ButtonColor;
-            button.ForeColor = Color.White;
-            button.FlatAppearance.BorderColor = BorderColor;
-        }
-
-        selected.BackColor = RazerGreen;
-        selected.ForeColor = BackgroundColor;
-        selected.FlatAppearance.BorderColor = RazerGreen;
-    }
-
-    private void ApplyAutoRefreshRate()
-    {
-        var status = Controls.Find("displayStatusLabel", true)
-            .OfType<Label>()
-            .FirstOrDefault();
-
-        if (status is null)
-            return;
-
-        var isPluggedIn = _powerSourceService.IsPluggedIn;
-
-        if (isPluggedIn is null)
-        {
-            status.Text = "Auto: power source unavailable.";
-            return;
-        }
-
-        var requestedRefreshRate = isPluggedIn.Value ? 120 : 60;
-        var displayInfo = _displayService.GetPrimaryDisplayInfo();
-
-        if (displayInfo?.RefreshRateHz != requestedRefreshRate &&
-            !_displayService.TrySetPrimaryRefreshRate(
-                requestedRefreshRate,
-                out var message))
-        {
-            status.Text = message;
-            return;
-        }
-
-        UpdateDisplayStatus();
     }
 
     private void HideWhenInactive()
@@ -459,21 +290,6 @@ public sealed class TrayPopupForm : Form
             control.Text = rpm is null ? $"{label}: -- RPM" : $"{label}: {rpm} RPM";
     }
 
-    private void UpdateDisplayStatus()
-    {
-        var displayInfo = _displayService.GetPrimaryDisplayInfo();
-        var status = Controls.Find("displayStatusLabel", true)
-            .OfType<Label>()
-            .FirstOrDefault();
-
-        if (status is not null)
-        {
-            status.Text = displayInfo is null
-                ? "Display information not available"
-                : $"Display: {displayInfo.Width}x{displayInfo.Height} @ {displayInfo.RefreshRateHz} Hz";
-        }
-    }
-
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (!_allowClose)
@@ -483,8 +299,6 @@ public sealed class TrayPopupForm : Form
             return;
         }
 
-        _powerSourceService.PowerSourceChanged -= PowerSourceService_PowerSourceChanged;
-        _powerSourceService.Dispose();
         _fanTelemetryTimer.Stop();
         _fanTelemetryTimer.Tick -= FanTelemetryTimer_Tick;
         _fanTelemetryTimer.Dispose();
