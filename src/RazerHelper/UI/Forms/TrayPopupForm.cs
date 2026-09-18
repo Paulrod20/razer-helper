@@ -13,6 +13,8 @@ public sealed class TrayPopupForm : Form
     private readonly BatterySection _batterySection;
     private readonly DisplaySection _displaySection;
     private readonly FanSection _fanSection;
+    private readonly PerformanceSection _performanceSection = new();
+    private readonly StatusSection _statusSection = new();
     private AppSettings _settings;
 
     public TrayPopupForm()
@@ -33,11 +35,6 @@ public sealed class TrayPopupForm : Form
 
         ApplyTheme();
         BuildView();
-
-        // The popup lives in the tray and is not shown at startup. Create its
-        // window handle now so BeginInvoke works for power events before the
-        // popup has been opened for the first time.
-        CreateHandle();
 
         _displaySection.Restore();
         _ = _batterySection.RestoreAsync();
@@ -87,11 +84,11 @@ public sealed class TrayPopupForm : Form
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F)); // Footer
 
         content.Controls.Add(CreateAppHeader(), 0, 0);
-        content.Controls.Add(CreatePerformanceSection(), 0, 1);
+        content.Controls.Add(_performanceSection, 0, 1);
         content.Controls.Add(_fanSection, 0, 2);
         content.Controls.Add(_displaySection, 0, 3);
         content.Controls.Add(_batterySection, 0, 4);
-        content.Controls.Add(CreateStatusSection(), 0, 5);
+        content.Controls.Add(_statusSection, 0, 5);
         content.Controls.Add(CreateFooter(), 0, 6);
 
         Controls.Add(content);
@@ -127,38 +124,6 @@ public sealed class TrayPopupForm : Form
         return header;
     }
 
-    private Control CreatePerformanceSection()
-    {
-        var section = CreateSectionPanel();
-        var modes = CreateButtonGrid(["Balanced", "Silent", "Custom"], "ModeButton");
-
-        section.Controls.Add(modes);
-        section.Controls.Add(CreateSectionHeader("Performance Mode", "Plugged in"));
-        return section;
-    }
-
-    private Control CreateStatusSection()
-    {
-        var section = CreateSectionPanel();
-        var title = CreateSectionLabel("RazerHelper Status");
-        title.Dock = DockStyle.Top;
-
-        var note = new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Top,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
-            ForeColor = Color.Silver,
-            Name = "appStatusLabel",
-            Padding = new Padding(0, 4, 0, 0),
-            Text = "Tray shell is ready. Display and battery controls are active."
-        };
-
-        section.Controls.Add(note);
-        section.Controls.Add(title);
-        return section;
-    }
-
     private Control CreateFooter() => new Label
     {
         AutoSize = true,
@@ -182,20 +147,7 @@ public sealed class TrayPopupForm : Form
         SaveSettings(_settings with { BatteryChargeLimit = limit });
 
     private void Section_StatusChanged(object? sender, SectionStatus status) =>
-        SetStatusMessage(status.Message, status.IsError);
-
-    private void SetStatusMessage(string message, bool isError = false)
-    {
-        var status = Controls.Find("appStatusLabel", true)
-            .OfType<Label>()
-            .FirstOrDefault();
-
-        if (status is null)
-            return;
-
-        status.ForeColor = isError ? Color.IndianRed : Color.Silver;
-        status.Text = message;
-    }
+        _statusSection.ShowStatus(status);
 
     private void HideWhenInactive()
     {
