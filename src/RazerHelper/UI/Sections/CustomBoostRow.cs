@@ -9,13 +9,17 @@ internal sealed class CustomBoostRow : TableLayoutPanel
 {
     public const int RowHeight = 72;
 
+    // Clear space between the CPU and GPU groups. Without it the last CPU
+    // button and the first GPU button sit as close as buttons in one group.
+    private const int GroupGap = 16;
+
     private readonly Dictionary<CpuBoost, Button> _cpuButtons = [];
     private readonly Dictionary<GpuBoost, Button> _gpuButtons = [];
 
     public CustomBoostRow()
     {
         BackColor = BackgroundColor;
-        ColumnCount = 2;
+        ColumnCount = 3;
         Dock = DockStyle.Bottom;
         Height = RowHeight;
         Margin = Padding.Empty;
@@ -26,13 +30,15 @@ internal sealed class CustomBoostRow : TableLayoutPanel
         var cpuLevels = Enum.GetValues<CpuBoost>();
         var gpuLevels = Enum.GetValues<GpuBoost>();
 
-        // Width follows the option count so every button is the same size.
+        // Width follows the option count so every button is the same size;
+        // the gap column between the groups is a fixed width.
         ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F * cpuLevels.Length / (cpuLevels.Length + gpuLevels.Length)));
+        ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, GroupGap));
         ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F * gpuLevels.Length / (cpuLevels.Length + gpuLevels.Length)));
         RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         Controls.Add(CreateSelector("CPU", cpuLevels, _cpuButtons, level => CpuSelected?.Invoke(this, level)), 0, 0);
-        Controls.Add(CreateSelector("GPU", gpuLevels, _gpuButtons, level => GpuSelected?.Invoke(this, level)), 1, 0);
+        Controls.Add(CreateSelector("GPU", gpuLevels, _gpuButtons, level => GpuSelected?.Invoke(this, level)), 2, 0);
     }
 
     public event EventHandler<CpuBoost>? CpuSelected;

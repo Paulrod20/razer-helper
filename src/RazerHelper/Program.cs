@@ -1,4 +1,5 @@
 using RazerHelper.Core.Diagnostics;
+using RazerHelper.Core.Services;
 using RazerHelper.Helpers;
 using RazerHelper.UI;
 using RazerHelper.UI.Forms;
@@ -11,8 +12,15 @@ namespace RazerHelper
         private const string SingleInstanceMutexName = @"Local\RazerHelper.SingleInstance";
 
         [STAThread]
-        static void Main()
+        static int Main(string[] args)
         {
+            // The elevated helper that stops or restores Razer's services. It
+            // does its one job and exits, so it must come before the
+            // single-instance check (the normal app is already running) and
+            // before any window exists.
+            if (RazerServiceCommand.TryRun(args, new WindowsServiceControl()) is int exitCode)
+                return exitCode;
+
             // Two instances would compete for the shared HID command channel
             // and overwrite each other's settings file.
             using var singleInstanceMutex = new Mutex(
@@ -23,7 +31,7 @@ namespace RazerHelper
             if (!isFirstInstance)
             {
                 AppLog.Info("Another RazerHelper is already running for this user; exiting.");
-                return;
+                return 0;
             }
 
             AppDiagnostics.LogStart();
@@ -37,6 +45,7 @@ namespace RazerHelper
             Application.Run();
 
             AppDiagnostics.LogExit();
+            return 0;
         }
 
         private static void ShowError(string message) =>

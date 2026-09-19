@@ -146,6 +146,34 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.Equal(new PowerProfile(), settings.PluggedInProfile);
     }
 
+    [Fact]
+    public void Save_ThenLoad_RoundTripsTheRecordedRazerServiceStartupTypes()
+    {
+        var service = new SettingsService(_directory);
+        var modes = new Dictionary<string, System.ServiceProcess.ServiceStartMode>
+        {
+            ["Razer Chroma SDK Server"] = System.ServiceProcess.ServiceStartMode.Automatic,
+            ["Razer Elevation Service"] = System.ServiceProcess.ServiceStartMode.Manual
+        };
+
+        service.Save(new AppSettings(RazerServiceStartModes: modes));
+
+        var loaded = service.Load();
+        Assert.Equal(modes, loaded.RazerServiceStartModes);
+    }
+
+    [Fact]
+    public void Save_WritesTheRazerServiceStartupTypesAsReadableNames()
+    {
+        new SettingsService(_directory).Save(new AppSettings(
+            RazerServiceStartModes: new Dictionary<string, System.ServiceProcess.ServiceStartMode>
+            {
+                ["Razer Elevation Service"] = System.ServiceProcess.ServiceStartMode.Manual
+            }));
+
+        Assert.Contains("\"Razer Elevation Service\": \"Manual\"", File.ReadAllText(SettingsPath));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("not json at all")]
