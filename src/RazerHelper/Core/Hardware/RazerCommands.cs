@@ -18,6 +18,10 @@ internal static class RazerCommands
     public const ushort GetBoost = 0x0D87;
     public const ushort GetActualFanRpm = 0x0D88;
 
+    // Class 0x07: max fan speed. Custom performance mode only.
+    public const ushort SetMaxFan = 0x070F;
+    public const ushort GetMaxFan = 0x078F;
+
     // Class 0x07: battery.
     public const ushort SetBatteryChargeLimit = 0x0712;
 }

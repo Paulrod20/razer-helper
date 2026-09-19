@@ -115,6 +115,23 @@ internal sealed class PerformanceSection : SectionPanel
     /// <summary>Applies the profile for the current power source, e.g. at startup.</summary>
     public Task RestoreAsync() => ApplyActiveProfileAsync();
 
+    /// <summary>
+    /// Turns max fan speed on or off. A one-off: it is not stored in a profile,
+    /// and the EC clears it by itself when the mode leaves Custom. Ignored when
+    /// it is already in that state, while something else is talking to the EC,
+    /// or when Max is not available (Custom mode, plugged in).
+    /// </summary>
+    public Task SetMaxFanAsync(bool enabled)
+    {
+        if (_busy || enabled == (_state.MaxFan == true) || !PowerProfileRules.CanUseMaxFan(_state, IsPluggedIn))
+            return Task.CompletedTask;
+
+        return RunAsync(
+            () => _performanceService.SetMaxFanAsync(enabled),
+            "Could not change max fan speed.",
+            _ => { }); // Nothing to remember: it is not part of a profile.
+    }
+
     /// <summary>Shows the mode and boost levels the EC is actually in.</summary>
     public async Task RefreshAsync()
     {
@@ -250,7 +267,7 @@ internal sealed class PerformanceSection : SectionPanel
             {
                 ShowState(result);
                 onSuccess(result);
-                AppLog.Info($"Performance state is now {result.Mode} (CPU {result.Cpu}, GPU {result.Gpu}).");
+                AppLog.Info($"Performance state is now {result.Mode} (CPU {result.Cpu}, GPU {result.Gpu}, max fan {result.MaxFan?.ToString() ?? "n/a"}).");
                 StatusChanged?.Invoke(this, new SectionStatus("Performance profile applied."));
             }
             else

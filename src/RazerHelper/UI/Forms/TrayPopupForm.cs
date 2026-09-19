@@ -72,6 +72,7 @@ public sealed class TrayPopupForm : Form
         _settings = _settingsService.Load();
 
         _fanSection = new FanSection(new FanTelemetryService(_transport), _powerSource);
+        _fanSection.MaxFanRequested += FanSection_MaxFanRequested;
 
         _performanceSection = new PerformanceSection(
             new PerformanceService(_transport),
@@ -283,6 +284,10 @@ public sealed class TrayPopupForm : Form
 
     private void ServicesSection_StartModesRecorded(object? sender, Dictionary<string, ServiceStartMode> modes) =>
         SaveSettings(_settings with { RazerServiceStartModes = modes });
+
+    // The fan buttons ask, the performance section does it (it owns the EC conversation).
+    private void FanSection_MaxFanRequested(object? sender, bool enabled) =>
+        _ = _performanceSection.SetMaxFanAsync(enabled);
 
     // Max fan speed only exists in Custom mode, so the fan buttons follow the performance state.
     private void PerformanceSection_StateChanged(object? sender, PerformanceState state) =>
