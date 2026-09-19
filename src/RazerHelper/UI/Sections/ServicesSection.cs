@@ -17,8 +17,8 @@ namespace RazerHelper.UI.Sections;
 /// </summary>
 internal sealed class ServicesSection : SectionPanel
 {
-    // The rule above, the count and button, and the one-line note below.
-    public const int RowHeight = 62;
+    // The rule, the spacing under it, the count and button, and the one-line note.
+    public const int RowHeight = 70;
 
     private readonly RazerServiceManager _manager;
     private readonly Label _countLabel;
@@ -59,7 +59,7 @@ internal sealed class ServicesSection : SectionPanel
             ColumnCount = 2,
             Dock = DockStyle.Fill,
             Margin = Padding.Empty,
-            Padding = Padding.Empty,
+            Padding = new Padding(0, 8, 0, 0), // Clear space below the rule.
             RowCount = 1
         };
 
