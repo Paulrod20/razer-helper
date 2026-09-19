@@ -9,6 +9,6 @@ public sealed record PowerProfile(
     CpuBoost? Cpu = null,
     GpuBoost? Gpu = null)
 {
-    /// <summary>What battery power gets until the user chooses otherwise, as in Synapse.</summary>
+    /// <summary>The battery profile: Balanced is the only mode offered on battery, as in Synapse.</summary>
     public static PowerProfile DefaultOnBattery { get; } = new(PerformanceMode.Balanced);
 }

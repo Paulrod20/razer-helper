@@ -14,9 +14,11 @@ namespace RazerHelper.UI.Sections;
 /// </summary>
 /// <remarks>
 /// The EC is the source of truth for what is shown: the display is refreshed
-/// from it when the popup opens, so a change made with Fn+P appears. The EC
-/// accepts every mode on battery (checked on a Blade 16), so nothing is
-/// disabled there; only the default battery profile differs.
+/// from it when the popup opens, so a change made outside the app appears.
+/// Like Synapse, only Balanced is offered on battery; Silent, Custom and the
+/// boost selectors are greyed out until the charger is connected. That is
+/// Synapse policy rather than a hardware limit: the EC does accept them on
+/// battery (checked on a Blade 16).
 /// </remarks>
 internal sealed class PerformanceSection : Panel
 {
@@ -55,7 +57,7 @@ internal sealed class PerformanceSection : Panel
         _profiles = new Dictionary<bool, PowerProfile>
         {
             [true] = pluggedInProfile ?? new PowerProfile(),
-            [false] = onBatteryProfile ?? PowerProfile.DefaultOnBattery
+            [false] = OnlyBalanced(onBatteryProfile ?? PowerProfile.DefaultOnBattery)
         };
 
         BackColor = BackgroundColor;
@@ -163,10 +165,26 @@ internal sealed class PerformanceSection : Panel
 
     private PowerProfile ActiveProfile => _profiles[IsPluggedIn];
 
+    // On battery only Balanced is offered, as in Synapse.
+    private bool IsModeAllowed(PerformanceMode mode) =>
+        IsPluggedIn || mode == PerformanceMode.Balanced;
+
+    // Boost levels belong to Custom, so they follow Custom's availability.
+    private bool CanChangeBoost =>
+        _state.Mode == PerformanceMode.Custom && IsModeAllowed(PerformanceMode.Custom);
+
+    // A battery profile saved by an earlier version may hold a mode that is
+    // no longer offered there; never apply one.
+    private static PowerProfile OnlyBalanced(PowerProfile profile) =>
+        profile.Mode is null or PerformanceMode.Balanced
+            ? profile
+            : profile with { Mode = PerformanceMode.Balanced };
+
     private void PowerSourceService_PowerSourceChanged(object? sender, EventArgs e) =>
         _ = PostToUiAsync(() =>
         {
             UpdateSourceLabel();
+            UpdateButtonStates();
 
             // Windows also raises this for battery percentage changes; only a
             // change of source means a different profile.
@@ -193,17 +211,17 @@ internal sealed class PerformanceSection : Panel
     }
 
     private Task SelectModeAsync(PerformanceMode mode) =>
-        mode == _state.Mode
+        mode == _state.Mode || !IsModeAllowed(mode)
             ? Task.CompletedTask // Would only rewrite what the EC already has.
             : ChangeProfileAsync(profile => profile with { Mode = mode }, "Could not change the performance mode.");
 
     private Task SelectCpuAsync(CpuBoost level) =>
-        _state.Mode != PerformanceMode.Custom || level == _state.Cpu
+        !CanChangeBoost || level == _state.Cpu
             ? Task.CompletedTask
             : ChangeProfileAsync(profile => profile with { Cpu = level }, "Could not change the boost level.");
 
     private Task SelectGpuAsync(GpuBoost level) =>
-        _state.Mode != PerformanceMode.Custom || level == _state.Gpu
+        !CanChangeBoost || level == _state.Gpu
             ? Task.CompletedTask
             : ChangeProfileAsync(profile => profile with { Gpu = level }, "Could not change the boost level.");
 
@@ -324,10 +342,10 @@ internal sealed class PerformanceSection : Panel
 
     private void UpdateButtonStates()
     {
-        foreach (var button in _buttons.Values)
-            button.Enabled = !_busy;
+        foreach (var (mode, button) in _buttons)
+            button.Enabled = !_busy && IsModeAllowed(mode);
 
-        _customRow.Enabled = !_busy;
+        _customRow.Enabled = !_busy && CanChangeBoost;
     }
 
     // Completes once the update has run, so callers can sequence on it.
