@@ -21,6 +21,7 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _autoSwitchBox;
     private readonly CheckBox _hideWhenClickedAwayBox;
     private readonly Label _errorLabel;
+    private readonly LinkLabel _previewLink;
 
     private bool _isLoading = true;
 
@@ -74,6 +75,8 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(_errorLabel);
 
         layout.Controls.Add(CreateDivider());
+        _previewLink = CreateLink("Show apps using the dedicated GPU", () => _ = ShowGpuPreviewAsync());
+        layout.Controls.Add(_previewLink);
         layout.Controls.Add(CreateLink("Razer drivers and support", ExternalLinks.OpenRazerDrivers));
         layout.Controls.Add(CreateLink("Open log folder", ExternalLinks.OpenLogFolder));
 
@@ -140,6 +143,38 @@ internal sealed class SettingsForm : Form
 
             _errorLabel.Text = "Could not change Start at login.";
             _errorLabel.Visible = true;
+        }
+    }
+
+    // A look only: nothing is closed or changed. It shows what the dedicated
+    // GPU is being used for, and which of those apps the app would ask to close.
+    private async Task ShowGpuPreviewAsync()
+    {
+        if (!_previewLink.Enabled)
+            return;
+
+        _previewLink.Enabled = false;
+
+        try
+        {
+            var scan = await DgpuScanner.ScanAsync();
+
+            MessageBox.Show(
+                this,
+                DgpuPreviewText.Build(scan),
+                "Apps using the dedicated GPU",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error("Could not scan the dedicated GPU.", exception);
+            _errorLabel.Text = "Could not check the dedicated GPU.";
+            _errorLabel.Visible = true;
+        }
+        finally
+        {
+            _previewLink.Enabled = true;
         }
     }
 
