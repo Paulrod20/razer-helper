@@ -12,12 +12,12 @@ It lives in the system tray, talks to the laptop's controller directly, and need
 - **Power profiles:** separate settings for plugged in and on battery, applied automatically when you plug or unplug. On battery only Balanced is offered, as in Synapse.
 - **Battery charge limit:** 60%, 80% or 100% (no limit).
 - **Display refresh rate:** 60 Hz, 120 Hz, or Auto, which follows the power source.
-- **Fan readout:** live CPU and GPU fan speed.
+- **Fans:** live CPU and GPU fan speed, and **Max** fan speed (both fans flat out). Max is a one-off that needs Custom mode and AC power; **Auto** turns it off, and it clears by itself when you leave Custom.
 - **Razer background services:** shows how many are running, and can stop and restore them (see below).
 
 ## Not yet
 
-Manual fan control, keyboard and logo lighting, the CPU overclock toggle and Max Fan Speed, launching at login, other Blade models, and Razer mice, keyboards and headsets.
+Manual fan control, keyboard and logo lighting, the CPU overclock toggle, launching at login, other Blade models, and Razer mice, keyboards and headsets.
 
 ## Requirements
 

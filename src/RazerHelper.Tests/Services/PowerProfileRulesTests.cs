@@ -44,6 +44,36 @@ public class PowerProfileRulesTests
         Assert.Equal(expected, PowerProfileRules.CanChangeBoost(state, pluggedIn));
     }
 
+    [Theory]
+    [InlineData((byte)PerformanceMode.Custom, true, true)]
+    [InlineData((byte)PerformanceMode.Custom, false, false)]   // Custom is not offered on battery
+    [InlineData((byte)PerformanceMode.Balanced, true, false)]  // the EC rejects max fan outside Custom
+    [InlineData((byte)PerformanceMode.Silent, true, false)]
+    [InlineData((byte)PerformanceMode.Balanced, false, false)]
+    public void CanUseMaxFan_NeedsCustomModeAndACPower(byte modeByte, bool pluggedIn, bool expected)
+    {
+        var state = new PerformanceState((PerformanceMode)modeByte, CpuBoost.Boost, GpuBoost.High);
+
+        Assert.Equal(expected, PowerProfileRules.CanUseMaxFan(state, pluggedIn));
+    }
+
+    [Fact]
+    public void CanUseMaxFan_IsFalseWhenTheModeIsUnknown()
+    {
+        Assert.False(PowerProfileRules.CanUseMaxFan(PerformanceState.Unknown, pluggedIn: true));
+    }
+
+    [Fact]
+    public void CanUseMaxFan_DoesNotYetRequireCpuBoostAndGpuHigh()
+    {
+        // Synapse also wants CPU Boost and GPU High before it offers Max. That
+        // rule is deliberately not applied here yet; this test records the
+        // current decision so changing it is a visible, intentional edit.
+        var state = new PerformanceState(PerformanceMode.Custom, CpuBoost.Low, GpuBoost.Low);
+
+        Assert.True(PowerProfileRules.CanUseMaxFan(state, pluggedIn: true));
+    }
+
     [Fact]
     public void CanChangeBoost_IsFalseWhenTheModeIsUnknown()
     {

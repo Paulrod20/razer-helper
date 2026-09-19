@@ -13,12 +13,16 @@ internal sealed class FakeEc : IRazerTransport
     // The response argument area starts at byte 9 (see RazerHidPacket).
     private const int ResponseLength = 91;
     private const int ArgumentOffset = 9;
+    private const byte CustomMode = 4;
 
     public readonly byte[] ZoneMode = [0, 0];
     public byte CpuBoost;
     public byte GpuBoost;
     public readonly byte[] FanRpmHundreds = [0, 0];
     public byte BatteryLimitByte = 0x50;
+
+    /// <summary>The EC's max fan speed flag. Like the real one it only exists in Custom mode.</summary>
+    public bool MaxFan;
 
     /// <summary>When true the EC accepts a mode write but silently keeps its old mode.</summary>
     public bool IgnoreModeWrites;
@@ -47,6 +51,8 @@ internal sealed class FakeEc : IRazerTransport
             RazerCommands.SetPerformanceMode => SetMode(args),
             RazerCommands.GetBoost => Respond(0x00, args[1], args[1] == 1 ? CpuBoost : GpuBoost),
             RazerCommands.SetBoost => SetBoost(args),
+            RazerCommands.GetMaxFan => Respond((byte)(MaxFan ? 2 : 0), 0x00),
+            RazerCommands.SetMaxFan => SetMaxFan(args),
             RazerCommands.GetActualFanRpm => Respond(0x00, args[1], FanRpmHundreds[args[1] - 1]),
             RazerCommands.SetBatteryChargeLimit => SetBattery(args),
             _ => throw new NotSupportedException($"FakeEc does not know command 0x{command:X4}.")
@@ -58,15 +64,36 @@ internal sealed class FakeEc : IRazerTransport
     {
         ZoneMode[0] = mode;
         ZoneMode[1] = mode;
+        ClearMaxFanOutsideCustom();
     }
 
     private byte[] SetMode(byte[] args)
     {
         // args: [enable, zone, mode, fanMode]
         if (!IgnoreModeWrites)
+        {
             ZoneMode[args[1] - 1] = args[2];
+            ClearMaxFanOutsideCustom();
+        }
 
         return Echo(args);
+    }
+
+    private byte[] SetMaxFan(byte[] args)
+    {
+        // args: [2 = on, 0 = off]. The real EC rejects this outside Custom mode.
+        if (ZoneMode[0] != CustomMode || ZoneMode[1] != CustomMode)
+            throw new InvalidOperationException("The EC rejected the max fan command outside Custom mode.");
+
+        MaxFan = args[0] == 2;
+        return Echo(args);
+    }
+
+    // Leaving Custom clears the flag in the real EC.
+    private void ClearMaxFanOutsideCustom()
+    {
+        if (ZoneMode[0] != CustomMode || ZoneMode[1] != CustomMode)
+            MaxFan = false;
     }
 
     private byte[] SetBoost(byte[] args)

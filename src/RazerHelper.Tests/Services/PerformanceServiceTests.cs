@@ -52,7 +52,7 @@ public class PerformanceServiceTests
         var (_, service) = Create(Custom, cpu: 2, gpu: 1);
 
         Assert.Equal(
-            new PerformanceState(PerformanceMode.Custom, CpuBoost.High, GpuBoost.Medium),
+            new PerformanceState(PerformanceMode.Custom, CpuBoost.High, GpuBoost.Medium, MaxFan: false),
             service.ReadState());
     }
 
@@ -123,7 +123,7 @@ public class PerformanceServiceTests
         var state = service.ApplyProfile(new PowerProfile(PerformanceMode.Custom, CpuBoost.Medium, GpuBoost.Low));
 
         Assert.Empty(ec.Writes);
-        Assert.Equal(new PerformanceState(PerformanceMode.Custom, CpuBoost.Medium, GpuBoost.Low), state);
+        Assert.Equal(new PerformanceState(PerformanceMode.Custom, CpuBoost.Medium, GpuBoost.Low, MaxFan: false), state);
     }
 
     [Fact]
@@ -230,6 +230,148 @@ public class PerformanceServiceTests
 
         Assert.Empty(BoostWrites(ec));
         Assert.Equal(PerformanceMode.Balanced, state.Mode);
+    }
+
+    // ---- Max fan speed ---------------------------------------------------
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ReadState_InCustom_ReportsTheMaxFanFlag(bool flag)
+    {
+        var (ec, service) = Create(Custom);
+        ec.MaxFan = flag;
+
+        Assert.Equal(flag, service.ReadState().MaxFan);
+    }
+
+    [Theory]
+    [InlineData(Balanced)]
+    [InlineData(Silent)]
+    public void ReadState_OutsideCustom_DoesNotReadMaxFan(byte mode)
+    {
+        // The EC's read-back is meaningless outside Custom, so it is not asked.
+        var (ec, service) = Create(mode);
+
+        Assert.Null(service.ReadState().MaxFan);
+        Assert.DoesNotContain(ec.Log, sent => sent.Command == RazerCommands.GetMaxFan);
+    }
+
+    [Fact]
+    public void ReadState_ReportsNoMaxFanValueForAnEcAnswerItDoesNotKnow()
+    {
+        var (ec, _) = Create(Custom);
+        var odd = new ScriptedTransport((command, args) =>
+            command == RazerCommands.GetMaxFan ? FakeEc.Respond(1, 0) : ec.Send(command, args));
+
+        Assert.Null(new PerformanceService(odd).ReadState().MaxFan);
+    }
+
+    [Fact]
+    public void SetMaxFan_On_SendsTheOnValueAndReportsTheNewState()
+    {
+        var (ec, service) = Create(Custom);
+
+        var state = service.SetMaxFan(true);
+
+        Assert.Equal(["070F:02"], ec.Writes.Select(Describe));
+        Assert.True(state.MaxFan);
+        Assert.True(ec.MaxFan);
+    }
+
+    [Fact]
+    public void SetMaxFan_Off_SendsTheOffValueAndReportsTheNewState()
+    {
+        var (ec, service) = Create(Custom);
+        ec.MaxFan = true;
+
+        var state = service.SetMaxFan(false);
+
+        Assert.Equal(["070F:00"], ec.Writes.Select(Describe));
+        Assert.False(state.MaxFan);
+        Assert.False(ec.MaxFan);
+    }
+
+    [Theory]
+    [InlineData(Balanced)]
+    [InlineData(Silent)]
+    public void SetMaxFan_RefusesOutsideCustom_AndSendsNothing(byte mode)
+    {
+        // The EC rejects the command there, so it must never be sent.
+        var (ec, service) = Create(mode);
+
+        Assert.Throws<InvalidOperationException>(() => service.SetMaxFan(true));
+
+        Assert.Empty(ec.Writes);
+    }
+
+    [Fact]
+    public void SetMaxFan_LeavesTheModeAndBoostLevelsAlone()
+    {
+        var (_, service) = Create(Custom, cpu: 3, gpu: 2);
+
+        var state = service.SetMaxFan(true);
+
+        Assert.Equal(PerformanceMode.Custom, state.Mode);
+        Assert.Equal(CpuBoost.Boost, state.Cpu);
+        Assert.Equal(GpuBoost.High, state.Gpu);
+    }
+
+    [Fact]
+    public void SetMaxFan_ThrowsWhenTheEcDoesNotEchoTheValue()
+    {
+        var (ec, service) = Create(Custom);
+        ec.EchoOverride = _ => [0x00];
+
+        var exception = Assert.Throws<InvalidOperationException>(() => service.SetMaxFan(true));
+
+        Assert.Contains("did not confirm max fan speed on", exception.Message);
+    }
+
+    [Fact]
+    public void SetMaxFan_ReportsWhatTheEcSays_NotWhatWasAskedFor()
+    {
+        // An EC that accepts the write but does not apply it: the caller must see the truth.
+        var (ec, _) = Create(Custom);
+        var stubborn = new ScriptedTransport((command, args) =>
+        {
+            var response = ec.Send(command, args);
+
+            if (command == RazerCommands.SetMaxFan)
+                ec.MaxFan = false;
+
+            return response;
+        });
+
+        var state = new PerformanceService(stubborn).SetMaxFan(true);
+
+        Assert.False(state.MaxFan);
+    }
+
+    [Fact]
+    public void LeavingCustom_ClearsMaxFan_WithoutTheServiceTouchingIt()
+    {
+        var (ec, service) = Create(Custom);
+        ec.MaxFan = true;
+
+        var state = service.ApplyProfile(new PowerProfile(PerformanceMode.Balanced));
+
+        Assert.Null(state.MaxFan);
+        Assert.False(ec.MaxFan);
+        Assert.DoesNotContain(ec.Writes, write => write.Command == RazerCommands.SetMaxFan);
+    }
+
+    [Fact]
+    public void ApplyingAProfile_NeverTurnsMaxFanOnOrOff()
+    {
+        // Max fan is a one-off, not part of any profile.
+        var (ec, service) = Create(Custom, cpu: 1, gpu: 0);
+        ec.MaxFan = true;
+
+        var state = service.ApplyProfile(new PowerProfile(PerformanceMode.Custom, CpuBoost.Boost, GpuBoost.High));
+
+        Assert.DoesNotContain(ec.Writes, write => write.Command == RazerCommands.SetMaxFan);
+        Assert.True(state.MaxFan);
     }
 
     // ---- Failures --------------------------------------------------------
