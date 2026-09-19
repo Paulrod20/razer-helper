@@ -12,10 +12,12 @@ namespace RazerHelper.UI.Forms;
 
 public sealed class TrayPopupForm : Form
 {
-    // Row positions in the popup's grid. The Razer services row is always
-    // last: anything new goes above it.
+    // Row positions in the popup's grid. The footer is always last and the
+    // Razer services row sits just above it: anything new goes above both.
     private const int PerformanceRow = 1;
     private const int ServicesRow = 5;
+    private const int FooterRow = 6;
+    private const int FooterRowHeight = 24;
 
     private const int PerformanceBaseRowHeight = 124;
     private const int FanRowHeight = 108; // Header, the two readouts and the taller Auto / Max buttons.
@@ -148,7 +150,7 @@ public sealed class TrayPopupForm : Form
             Dock = DockStyle.Fill,
             Margin = Padding.Empty,
             Padding = new Padding(16, 12, 16, 12),
-            RowCount = 6
+            RowCount = 7
         };
 
         // Every row is a fixed height, so the popup's height is their sum.
@@ -160,7 +162,8 @@ public sealed class TrayPopupForm : Form
         _content.RowStyles.Add(new RowStyle(SizeType.Absolute, FanRowHeight)); // Fan
         _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 74F)); // Display
         _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F)); // Battery
-        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 0F)); // Razer services (bottom)
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 0F)); // Razer services
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, FooterRowHeight)); // Footer (bottom)
 
         _content.Controls.Add(CreateAppHeader(), 0, 0);
         _content.Controls.Add(_performanceSection, 0, PerformanceRow);
@@ -168,6 +171,7 @@ public sealed class TrayPopupForm : Form
         _content.Controls.Add(_displaySection, 0, 3);
         _content.Controls.Add(_batterySection, 0, 4);
         _content.Controls.Add(_servicesSection, 0, ServicesRow);
+        _content.Controls.Add(CreateFooter(), 0, FooterRow);
 
         Controls.Add(_content);
 
@@ -226,6 +230,18 @@ public sealed class TrayPopupForm : Form
 
         return header;
     }
+
+    // The very bottom of the popup: the app version.
+    private static Control CreateFooter() => new Label
+    {
+        AutoSize = false,
+        Dock = DockStyle.Fill,
+        Font = CreateDesignFont("Segoe UI", 8F),
+        ForeColor = SubtleTextColor,
+        Margin = Padding.Empty,
+        Text = $"RazerHelper {AppVersion.Current}",
+        TextAlign = ContentAlignment.BottomLeft
+    };
 
     private static Label CreateHeaderStatusLabel() => new()
     {
