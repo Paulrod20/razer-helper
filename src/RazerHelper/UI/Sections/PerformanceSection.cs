@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
@@ -34,6 +35,7 @@ internal sealed class PerformanceSection : SectionPanel
     private bool? _appliedSource;
     private bool _busy;
     private bool _reapplyRequested;
+    private bool _autoSwitchProfiles = true;
 
     // Tracked here because Control.Visible reads false whenever any parent is
     // hidden, which is most of the time for a tray popup.
@@ -112,6 +114,28 @@ internal sealed class PerformanceSection : SectionPanel
 
     public bool IsCustomRowShown => _isCustomRowShown;
 
+    /// <summary>
+    /// Whether plugging or unplugging the charger switches to the profile for
+    /// that source. Turning it back on catches up straight away if the source
+    /// changed while it was off.
+    /// </summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool AutoSwitchProfiles
+    {
+        get => _autoSwitchProfiles;
+        set
+        {
+            if (_autoSwitchProfiles == value)
+                return;
+
+            _autoSwitchProfiles = value;
+
+            if (value && IsPluggedIn != _appliedSource)
+                _ = ApplyActiveProfileAsync();
+        }
+    }
+
     /// <summary>Applies the profile for the current power source, e.g. at startup.</summary>
     public Task RestoreAsync() => ApplyActiveProfileAsync();
 
@@ -181,7 +205,7 @@ internal sealed class PerformanceSection : SectionPanel
 
             // Windows also raises this for battery percentage changes; only a
             // change of source means a different profile.
-            if (IsPluggedIn != _appliedSource)
+            if (_autoSwitchProfiles && IsPluggedIn != _appliedSource)
                 _ = ApplyActiveProfileAsync();
         });
 
@@ -291,7 +315,7 @@ internal sealed class PerformanceSection : SectionPanel
         {
             _reapplyRequested = false;
 
-            if (IsPluggedIn != _appliedSource)
+            if (_autoSwitchProfiles && IsPluggedIn != _appliedSource)
                 _ = ApplyActiveProfileAsync();
         }
     }

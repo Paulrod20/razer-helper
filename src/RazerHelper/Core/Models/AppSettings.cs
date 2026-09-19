@@ -14,4 +14,8 @@ internal sealed record AppSettings(
     // folded into PluggedInProfile by SettingsService, then dropped.
     string? PerformanceMode = null,
     string? CustomCpuBoost = null,
-    string? CustomGpuBoost = null);
+    string? CustomGpuBoost = null,
+    // Settings window. Both are on unless the user turns them off, which is
+    // also what a settings file from an earlier version means.
+    bool AutoSwitchProfiles = true,
+    bool HideWhenClickedAway = true);

@@ -32,6 +32,7 @@ public sealed class TrayPopupForm : Form
     // One EC connection shared by every service that talks to the hardware.
     private readonly IRazerTransport _transport;
     private readonly IPowerSource _powerSource;
+    private readonly IStartupRegistration _startupRegistration;
     private readonly bool _ownsDependencies;
     private readonly BatterySection _batterySection;
     private readonly DisplaySection _displaySection;
@@ -50,6 +51,7 @@ public sealed class TrayPopupForm : Form
             new PowerSourceService(),
             new WindowsServiceControl(),
             new SettingsService(),
+            new RunKeyStartupRegistration(Environment.ProcessPath ?? Application.ExecutablePath),
             ownsDependencies: true)
     {
     }
@@ -64,11 +66,13 @@ public sealed class TrayPopupForm : Form
         IPowerSource powerSource,
         IServiceControl serviceControl,
         SettingsService settingsService,
+        IStartupRegistration startupRegistration,
         bool ownsDependencies = false)
     {
         _transport = transport;
         _powerSource = powerSource;
         _settingsService = settingsService;
+        _startupRegistration = startupRegistration;
         _ownsDependencies = ownsDependencies;
 
         _settings = _settingsService.Load();
@@ -85,6 +89,7 @@ public sealed class TrayPopupForm : Form
         _performanceSection.CustomRowVisibilityChanged += PerformanceSection_CustomRowVisibilityChanged;
         _performanceSection.StatusChanged += Section_StatusChanged;
         _performanceSection.StateChanged += PerformanceSection_StateChanged;
+        _performanceSection.AutoSwitchProfiles = _settings.AutoSwitchProfiles;
 
         _displaySection = new DisplaySection(
             new DisplayService(),
@@ -231,17 +236,80 @@ public sealed class TrayPopupForm : Form
         return header;
     }
 
-    // The very bottom of the popup: the app version.
-    private static Control CreateFooter() => new Label
+    // The very bottom of the popup: the app version on the left, the
+    // Settings link on the right.
+    private Control CreateFooter()
     {
-        AutoSize = false,
-        Dock = DockStyle.Fill,
-        Font = CreateDesignFont("Segoe UI", 8F),
-        ForeColor = SubtleTextColor,
-        Margin = Padding.Empty,
-        Text = $"RazerHelper {AppVersion.Current}",
-        TextAlign = ContentAlignment.BottomLeft
-    };
+        var footer = new TableLayoutPanel
+        {
+            BackColor = BackgroundColor,
+            ColumnCount = 2,
+            Dock = DockStyle.Fill,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            RowCount = 1
+        };
+
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        footer.Controls.Add(new Label
+        {
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            Font = CreateDesignFont("Segoe UI", 8F),
+            ForeColor = SubtleTextColor,
+            Margin = Padding.Empty,
+            Text = $"RazerHelper {AppVersion.Current}",
+            TextAlign = ContentAlignment.BottomLeft
+        }, 0, 0);
+
+        var settingsLink = new LinkLabel
+        {
+            ActiveLinkColor = Color.White,
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            Font = CreateDesignFont("Segoe UI", 8.5F),
+            LinkBehavior = LinkBehavior.HoverUnderline,
+            LinkColor = Color.Silver,
+            Margin = Padding.Empty,
+            Text = "Settings",
+            TextAlign = ContentAlignment.BottomRight
+        };
+
+        settingsLink.LinkClicked += (_, _) => ShowSettings();
+        footer.Controls.Add(settingsLink, 1, 0);
+
+        return footer;
+    }
+
+    private void ShowSettings()
+    {
+        using var settingsForm = new SettingsForm(_settings, _startupRegistration);
+
+        settingsForm.AutoSwitchProfilesChanged += (_, enabled) =>
+        {
+            SaveSettings(_settings with { AutoSwitchProfiles = enabled });
+            _performanceSection.AutoSwitchProfiles = enabled;
+        };
+
+        settingsForm.HideWhenClickedAwayChanged += (_, enabled) =>
+            SaveSettings(_settings with { HideWhenClickedAway = enabled });
+
+        // The window takes focus from the popup, which would hide it (and the
+        // window with it) unless auto-hide is held off.
+        _modalDepth++;
+
+        try
+        {
+            settingsForm.ShowDialog(this);
+        }
+        finally
+        {
+            _modalDepth--;
+        }
+    }
 
     private static Label CreateHeaderStatusLabel() => new()
     {
@@ -331,7 +399,7 @@ public sealed class TrayPopupForm : Form
 
     private void HideWhenInactive()
     {
-        if (!_allowClose && _modalDepth == 0 && Visible && !ContainsFocus)
+        if (!_allowClose && _settings.HideWhenClickedAway && _modalDepth == 0 && Visible && !ContainsFocus)
             Hide();
     }
 

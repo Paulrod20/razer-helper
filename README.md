@@ -4,7 +4,7 @@ A lightweight, open-source replacement for Razer Synapse on Razer Blade laptops.
 
 It lives in the system tray, talks to the laptop's controller directly, and needs no account, no cloud and no background services of its own.
 
-> **Status: early, pre-1.0.** Built and tested on a **Razer Blade 16 (2023)** running Windows 11. Other models are not supported yet. This project is not affiliated with Razer.
+> **Status: v1.0.** Built and tested on a **Razer Blade 16 (2023)** running Windows 11. Other models are not supported yet. This project is not affiliated with Razer.
 
 ## What it does today
 
@@ -14,10 +14,11 @@ It lives in the system tray, talks to the laptop's controller directly, and need
 - **Display refresh rate:** 60 Hz, 120 Hz, or Auto, which follows the power source.
 - **Fans:** live CPU and GPU fan speed, and **Max** fan speed (both fans flat out). Max is a one-off that needs Custom mode and AC power; **Auto** turns it off, and it clears by itself when you leave Custom.
 - **Razer background services:** shows how many are running, and can stop and restore them (see below).
+- **Settings** (link at the bottom right): start at login, switch profile automatically when you plug in or unplug, hide the window when you click away, and shortcuts to Razer's drivers and support page and to the log folder.
 
 ## Not yet
 
-Manual fan control, keyboard and logo lighting, the CPU overclock toggle, launching at login, other Blade models, and Razer mice, keyboards and headsets.
+Manual fan control, keyboard and logo lighting, the CPU overclock toggle, closing apps that use the dedicated GPU when you unplug, other Blade models, and Razer mice, keyboards and headsets.
 
 ## Requirements
 

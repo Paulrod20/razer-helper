@@ -43,6 +43,29 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void Load_FromAFileWrittenBeforeTheSettingsWindow_TurnsBothOptionsOn()
+    {
+        WriteSettings("""{ "DisplayMode": "Auto", "BatteryChargeLimit": 80 }""");
+
+        var settings = new SettingsService(_directory).Load();
+
+        Assert.True(settings.AutoSwitchProfiles);
+        Assert.True(settings.HideWhenClickedAway);
+    }
+
+    [Fact]
+    public void Save_ThenLoad_KeepsTurnedOffOptions()
+    {
+        var service = new SettingsService(_directory);
+
+        service.Save(new AppSettings(AutoSwitchProfiles: false, HideWhenClickedAway: false));
+        var settings = service.Load();
+
+        Assert.False(settings.AutoSwitchProfiles);
+        Assert.False(settings.HideWhenClickedAway);
+    }
+
+    [Fact]
     public void Save_CreatesTheSettingsFolderWhenItDoesNotExist()
     {
         new SettingsService(_directory).Save(new AppSettings(DisplayMode: "60 Hz"));
