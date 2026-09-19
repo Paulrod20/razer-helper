@@ -19,38 +19,65 @@ public sealed class PerformanceModeService : IDisposable
 
     private readonly RazerHidTransport _transport = new();
 
-    public Task<PerformanceMode?> GetModeAsync() => Task.Run(GetMode);
+    /// <summary>What the EC holds now. Boost levels are only read in Custom mode.</summary>
+    public Task<PerformanceState> ReadStateAsync() => Task.Run(ReadState);
 
-    public Task SetModeAsync(PerformanceMode mode) => Task.Run(() => SetMode(mode));
-
-    /// <summary>The boost levels the EC currently holds; a level is null if it is not one we know.</summary>
-    public Task<(CpuBoost? Cpu, GpuBoost? Gpu)> GetBoostsAsync() => Task.Run(() =>
+    /// <summary>
+    /// Brings the EC to <paramref name="profile"/>, writing only what differs,
+    /// and returns the state it ended up in. Fields the profile leaves null
+    /// are left alone.
+    /// </summary>
+    public Task<PerformanceState> ApplyProfileAsync(PowerProfile profile) => Task.Run(() =>
     {
-        var cpu = ReadBoost(CpuCluster);
-        var gpu = ReadBoost(GpuCluster);
+        var state = ReadState();
 
-        return (
-            Enum.IsDefined((CpuBoost)cpu) ? (CpuBoost?)cpu : null,
-            Enum.IsDefined((GpuBoost)gpu) ? (GpuBoost?)gpu : null);
-    });
+        if (profile.Mode is PerformanceMode mode && state.Mode != mode)
+        {
+            SetMode(mode);
+            state = ReadState();
+        }
 
-    public Task SetCpuBoostAsync(CpuBoost boost) => Task.Run(() =>
-    {
-        if (!Enum.IsDefined(boost))
-            throw new ArgumentOutOfRangeException(nameof(boost), boost, "Unsupported CPU boost.");
+        // Boost levels only exist in Custom mode; the EC ignores them elsewhere.
+        if (state.Mode == PerformanceMode.Custom)
+        {
+            var wrote = false;
 
-        SetBoost(CpuCluster, (byte)boost);
-    });
+            if (profile.Cpu is CpuBoost cpu && state.Cpu != cpu)
+            {
+                SetBoost(CpuCluster, (byte)cpu);
+                wrote = true;
+            }
 
-    public Task SetGpuBoostAsync(GpuBoost boost) => Task.Run(() =>
-    {
-        if (!Enum.IsDefined(boost))
-            throw new ArgumentOutOfRangeException(nameof(boost), boost, "Unsupported GPU boost.");
+            if (profile.Gpu is GpuBoost gpu && state.Gpu != gpu)
+            {
+                SetBoost(GpuCluster, (byte)gpu);
+                wrote = true;
+            }
 
-        SetBoost(GpuCluster, (byte)boost);
+            if (wrote)
+                state = ReadState();
+        }
+
+        return state;
     });
 
     public void Dispose() => _transport.Dispose();
+
+    private PerformanceState ReadState()
+    {
+        var mode = GetMode();
+
+        if (mode != PerformanceMode.Custom)
+            return new PerformanceState(mode, null, null);
+
+        var cpu = ReadBoost(CpuCluster);
+        var gpu = ReadBoost(GpuCluster);
+
+        return new PerformanceState(
+            mode,
+            Enum.IsDefined((CpuBoost)cpu) ? (CpuBoost)cpu : null,
+            Enum.IsDefined((GpuBoost)gpu) ? (GpuBoost)gpu : null);
+    }
 
     private PerformanceMode? GetMode()
     {
@@ -86,9 +113,6 @@ public sealed class PerformanceModeService : IDisposable
 
     private void SetMode(PerformanceMode mode)
     {
-        if (!Enum.IsDefined(mode))
-            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unsupported performance mode.");
-
         foreach (var zone in Zones)
         {
             SendAndConfirm(
@@ -110,8 +134,8 @@ public sealed class PerformanceModeService : IDisposable
 
     private void SetBoost(byte cluster, byte level)
     {
-        // The EC only honors boost writes in Custom mode; anywhere else the
-        // write would be dropped or misapplied, so refuse it up front.
+        // Callers already know the mode, but a stale read must never turn into
+        // a boost write outside Custom, where the EC drops or misapplies it.
         if (GetMode() != PerformanceMode.Custom)
             throw new InvalidOperationException("Boost levels can only be changed in Custom mode.");
 

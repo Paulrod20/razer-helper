@@ -31,13 +31,10 @@ public sealed class TrayPopupForm : Form
         _fanSection = new FanSection();
 
         _performanceSection = new PerformanceSection(
-            _settings.PerformanceMode,
-            _settings.CustomCpuBoost,
-            _settings.CustomGpuBoost,
+            _settings.PluggedInProfile,
+            _settings.OnBatteryProfile,
             _powerSourceService);
-        _performanceSection.ModeApplied += PerformanceSection_ModeApplied;
-        _performanceSection.CpuBoostApplied += PerformanceSection_CpuBoostApplied;
-        _performanceSection.GpuBoostApplied += PerformanceSection_GpuBoostApplied;
+        _performanceSection.ProfileChanged += PerformanceSection_ProfileChanged;
         _performanceSection.CustomRowVisibilityChanged += PerformanceSection_CustomRowVisibilityChanged;
         _performanceSection.StatusChanged += Section_StatusChanged;
 
@@ -186,17 +183,13 @@ public sealed class TrayPopupForm : Form
     private void DisplaySection_DisplayModeChanged(object? sender, string mode) =>
         SaveSettings(_settings with { DisplayMode = mode });
 
-    private void PerformanceSection_ModeApplied(object? sender, PerformanceMode mode) =>
-        SaveSettings(_settings with { PerformanceMode = mode.ToString() });
+    private void PerformanceSection_ProfileChanged(object? sender, PowerProfileChange change) =>
+        SaveSettings(change.PluggedIn
+            ? _settings with { PluggedInProfile = change.Profile }
+            : _settings with { OnBatteryProfile = change.Profile });
 
     private void BatterySection_ChargeLimitApplied(object? sender, int limit) =>
         SaveSettings(_settings with { BatteryChargeLimit = limit });
-
-    private void PerformanceSection_CpuBoostApplied(object? sender, CpuBoost level) =>
-        SaveSettings(_settings with { CustomCpuBoost = level.ToString() });
-
-    private void PerformanceSection_GpuBoostApplied(object? sender, GpuBoost level) =>
-        SaveSettings(_settings with { CustomGpuBoost = level.ToString() });
 
     private void PerformanceSection_CustomRowVisibilityChanged(object? sender, bool shown) =>
         ResizeForPerformanceRow(shown);

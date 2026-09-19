@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using RazerHelper.Core.Diagnostics;
 using RazerHelper.Core.Models;
 
@@ -8,7 +9,9 @@ public sealed class SettingsService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
-        WriteIndented = true
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new JsonStringEnumConverter() }
     };
 
     private readonly string _settingsDirectory;
@@ -30,8 +33,10 @@ public sealed class SettingsService
         try
         {
             var json = File.ReadAllText(_settingsPath);
-            return JsonSerializer.Deserialize<AppSettings>(json, SerializerOptions)
+            var settings = JsonSerializer.Deserialize<AppSettings>(json, SerializerOptions)
                 ?? new AppSettings();
+
+            return MigrateLegacyProfile(settings);
         }
         catch (Exception exception) when (
             exception is IOException or
@@ -42,6 +47,35 @@ public sealed class SettingsService
             return new AppSettings();
         }
     }
+
+    // Before profiles, the app stored one mode and its boost levels. Those were
+    // chosen while plugged in as far as anyone can tell, so they become the
+    // plugged-in profile; the battery profile starts from its default.
+    private static AppSettings MigrateLegacyProfile(AppSettings settings)
+    {
+        if (settings.PerformanceMode is null &&
+            settings.CustomCpuBoost is null &&
+            settings.CustomGpuBoost is null)
+        {
+            return settings;
+        }
+
+        return settings with
+        {
+            PluggedInProfile = settings.PluggedInProfile ?? new PowerProfile(
+                ParseEnum<PerformanceMode>(settings.PerformanceMode),
+                ParseEnum<CpuBoost>(settings.CustomCpuBoost),
+                ParseEnum<GpuBoost>(settings.CustomGpuBoost)),
+            PerformanceMode = null,
+            CustomCpuBoost = null,
+            CustomGpuBoost = null
+        };
+    }
+
+    private static T? ParseEnum<T>(string? value) where T : struct, Enum =>
+        Enum.TryParse<T>(value, out var parsed) && Enum.IsDefined(parsed)
+            ? parsed
+            : null;
 
     public void Save(AppSettings settings)
     {

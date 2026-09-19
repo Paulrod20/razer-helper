@@ -7,15 +7,16 @@ using static RazerHelper.UI.UiTheme;
 namespace RazerHelper.UI.Sections;
 
 /// <summary>
-/// Balanced / Silent / Custom performance modes, plus the CPU and GPU boost
-/// selectors that appear while Custom is active. Owns the mode service and
-/// reports results through events. The EC is the source of truth: the
-/// selection is refreshed from it whenever the popup opens or the power
-/// source changes, so a change made with Fn+P shows up.
+/// Performance modes and, in Custom, the CPU and GPU boost levels. There is
+/// one profile per power source; the buttons edit the profile for the source
+/// the laptop is on now, and that profile is applied automatically at startup
+/// and whenever the charger is plugged or unplugged.
 /// </summary>
 /// <remarks>
-/// Like Synapse, only Balanced is offered on battery; the other modes and the
-/// boost selectors are greyed out until the charger is connected.
+/// The EC is the source of truth for what is shown: the display is refreshed
+/// from it when the popup opens, so a change made with Fn+P appears. The EC
+/// accepts every mode on battery (checked on a Blade 16), so nothing is
+/// disabled there; only the default battery profile differs.
 /// </remarks>
 internal sealed class PerformanceSection : Panel
 {
@@ -23,37 +24,39 @@ internal sealed class PerformanceSection : Panel
     private readonly PowerSourceService _powerSourceService;
     private readonly Dictionary<PerformanceMode, Button> _buttons = [];
     private readonly CustomBoostRow _customRow = new();
-    private readonly PerformanceMode? _savedMode;
-    private readonly CpuBoost? _savedCpu;
-    private readonly GpuBoost? _savedGpu;
+    private readonly Label _sourceLabel;
+
+    // Keyed by "plugged in".
+    private readonly Dictionary<bool, PowerProfile> _profiles;
 
     // Hardware and power events arrive on other threads. Post UI updates
     // through the UI thread's context rather than relying on this control's
     // handle, which does not exist until the popup is first shown.
     private readonly SynchronizationContext _uiContext;
 
-    private PerformanceMode? _currentMode;
-    private CpuBoost? _currentCpu;
-    private GpuBoost? _currentGpu;
+    private PerformanceState _state = PerformanceState.Unknown;
+    private bool? _appliedSource;
     private bool _busy;
+    private bool _reapplyRequested;
 
     // Tracked here because Control.Visible reads false whenever any parent is
     // hidden, which is most of the time for a tray popup.
     private bool _isCustomRowShown;
 
     public PerformanceSection(
-        string? savedMode,
-        string? savedCpu,
-        string? savedGpu,
+        PowerProfile? pluggedInProfile,
+        PowerProfile? onBatteryProfile,
         PowerSourceService powerSourceService)
     {
         _powerSourceService = powerSourceService;
         _uiContext = SynchronizationContext.Current
             ?? new WindowsFormsSynchronizationContext();
 
-        _savedMode = ParseSaved<PerformanceMode>(savedMode);
-        _savedCpu = ParseSaved<CpuBoost>(savedCpu);
-        _savedGpu = ParseSaved<GpuBoost>(savedGpu);
+        _profiles = new Dictionary<bool, PowerProfile>
+        {
+            [true] = pluggedInProfile ?? new PowerProfile(),
+            [false] = onBatteryProfile ?? PowerProfile.DefaultOnBattery
+        };
 
         BackColor = BackgroundColor;
         Dock = DockStyle.Fill;
@@ -74,28 +77,38 @@ internal sealed class PerformanceSection : Panel
         _customRow.CpuSelected += async (_, level) => await SelectCpuAsync(level);
         _customRow.GpuSelected += async (_, level) => await SelectGpuAsync(level);
 
+        _sourceLabel = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Right,
+            Font = CreateDesignFont("Segoe UI", 9.5F),
+            ForeColor = Color.Silver,
+            TextAlign = ContentAlignment.MiddleRight
+        };
+
+        var header = CreateTwoColumnLayout(60F, 40F);
+        header.Dock = DockStyle.Top;
+        header.Height = 28;
+        header.Controls.Add(CreateSectionLabel("Performance Mode"), 0, 0);
+        header.Controls.Add(_sourceLabel, 1, 0);
+
         // Dock order: the header docks first, then the custom row, and the
         // mode buttons fill whatever is left.
         Controls.Add(grid);
         Controls.Add(_customRow);
-        Controls.Add(CreateSectionHeader("Performance Mode", string.Empty));
+        Controls.Add(header);
 
-        // Start with the row where it was last time, so the popup does not
-        // jump when the real mode is read a moment later.
-        SetCustomRowShown(_savedMode == PerformanceMode.Custom);
-
+        // Start with the row where the active profile last had it, so the
+        // popup does not jump when the real mode is read a moment later.
+        SetCustomRowShown(ActiveProfile.Mode == PerformanceMode.Custom);
+        UpdateSourceLabel();
         UpdateButtonStates();
+
         _powerSourceService.PowerSourceChanged += PowerSourceService_PowerSourceChanged;
     }
 
-    /// <summary>Raised after the EC confirms a new mode that should be remembered.</summary>
-    public event EventHandler<PerformanceMode>? ModeApplied;
-
-    /// <summary>Raised after the EC confirms a new CPU boost level.</summary>
-    public event EventHandler<CpuBoost>? CpuBoostApplied;
-
-    /// <summary>Raised after the EC confirms a new GPU boost level.</summary>
-    public event EventHandler<GpuBoost>? GpuBoostApplied;
+    /// <summary>Raised after the user changes a profile and the EC confirms it.</summary>
+    public event EventHandler<PowerProfileChange>? ProfileChanged;
 
     /// <summary>Raised with a user-facing message about the last operation.</summary>
     public event EventHandler<SectionStatus>? StatusChanged;
@@ -105,16 +118,8 @@ internal sealed class PerformanceSection : Panel
 
     public bool IsCustomRowShown => _isCustomRowShown;
 
-    /// <summary>Re-applies the saved mode and boost levels (the EC may have reset them), or reads them if none are saved.</summary>
-    public async Task RestoreAsync()
-    {
-        if (_savedMode is PerformanceMode saved && IsModeAllowed(saved))
-            await ApplyAsync(saved, announce: false);
-        else
-            await RefreshAsync();
-
-        await RestoreBoostsAsync();
-    }
+    /// <summary>Applies the profile for the current power source, e.g. at startup.</summary>
+    public Task RestoreAsync() => ApplyActiveProfileAsync();
 
     /// <summary>Shows the mode and boost levels the EC is actually in.</summary>
     public async Task RefreshAsync()
@@ -124,16 +129,11 @@ internal sealed class PerformanceSection : Panel
 
         _busy = true;
 
-        PerformanceMode? mode = null;
-        CpuBoost? cpu = null;
-        GpuBoost? gpu = null;
+        var state = PerformanceState.Unknown;
 
         try
         {
-            mode = await _modeService.GetModeAsync().ConfigureAwait(false);
-
-            if (mode == PerformanceMode.Custom)
-                (cpu, gpu) = await _modeService.GetBoostsAsync().ConfigureAwait(false);
+            state = await _modeService.ReadStateAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -142,8 +142,8 @@ internal sealed class PerformanceSection : Panel
 
         await PostToUiAsync(() =>
         {
-            _busy = false;
-            ShowState(mode, cpu, gpu);
+            ShowState(state);
+            EndBusy();
         });
     }
 
@@ -158,137 +158,100 @@ internal sealed class PerformanceSection : Panel
         base.Dispose(disposing);
     }
 
-    // Unknown power state (no battery reported) is treated as plugged in, so
-    // a machine that cannot tell us is never locked out of its modes.
+    // Unknown power state (no battery reported) counts as plugged in.
     private bool IsPluggedIn => _powerSourceService.IsPluggedIn != false;
 
-    private bool IsModeAllowed(PerformanceMode mode) =>
-        IsPluggedIn || mode == PerformanceMode.Balanced;
+    private PowerProfile ActiveProfile => _profiles[IsPluggedIn];
 
     private void PowerSourceService_PowerSourceChanged(object? sender, EventArgs e) =>
         _ = PostToUiAsync(() =>
         {
-            UpdateButtonStates();
+            UpdateSourceLabel();
 
-            // Show what the firmware did on its own rather than assuming.
-            _ = RefreshAsync();
+            // Windows also raises this for battery percentage changes; only a
+            // change of source means a different profile.
+            if (IsPluggedIn != _appliedSource)
+                _ = ApplyActiveProfileAsync();
         });
 
-    private async Task SelectModeAsync(PerformanceMode mode)
+    private Task ApplyActiveProfileAsync()
     {
-        // Clicking the active mode would only rewrite what the EC already has.
-        if (_busy || mode == _currentMode || !IsModeAllowed(mode))
-            return;
+        if (_busy)
+        {
+            // Something else is talking to the EC; pick this up when it is done.
+            _reapplyRequested = true;
+            return Task.CompletedTask;
+        }
 
-        await ApplyAsync(mode, announce: true);
+        var source = IsPluggedIn;
+        var profile = _profiles[source];
+
+        return RunAsync(
+            () => _modeService.ApplyProfileAsync(profile),
+            "Could not apply the power profile.",
+            _ => _appliedSource = source);
     }
 
-    private async Task ApplyAsync(PerformanceMode mode, bool announce)
+    private Task SelectModeAsync(PerformanceMode mode) =>
+        mode == _state.Mode
+            ? Task.CompletedTask // Would only rewrite what the EC already has.
+            : ChangeProfileAsync(profile => profile with { Mode = mode }, "Could not change the performance mode.");
+
+    private Task SelectCpuAsync(CpuBoost level) =>
+        _state.Mode != PerformanceMode.Custom || level == _state.Cpu
+            ? Task.CompletedTask
+            : ChangeProfileAsync(profile => profile with { Cpu = level }, "Could not change the boost level.");
+
+    private Task SelectGpuAsync(GpuBoost level) =>
+        _state.Mode != PerformanceMode.Custom || level == _state.Gpu
+            ? Task.CompletedTask
+            : ChangeProfileAsync(profile => profile with { Gpu = level }, "Could not change the boost level.");
+
+    private Task ChangeProfileAsync(Func<PowerProfile, PowerProfile> edit, string failureMessage)
+    {
+        if (_busy)
+            return Task.CompletedTask;
+
+        var source = IsPluggedIn;
+        var edited = edit(_profiles[source]);
+
+        return RunAsync(
+            () => _modeService.ApplyProfileAsync(edited),
+            failureMessage,
+            state =>
+            {
+                // Keep what the EC really ended up in, so the stored profile
+                // is fully specified. Boost levels the EC does not report
+                // (outside Custom) stay as they were for the next Custom.
+                var saved = edited with
+                {
+                    Mode = state.Mode ?? edited.Mode,
+                    Cpu = state.Cpu ?? edited.Cpu,
+                    Gpu = state.Gpu ?? edited.Gpu
+                };
+
+                _profiles[source] = saved;
+                _appliedSource = source;
+                ProfileChanged?.Invoke(this, new PowerProfileChange(source, saved));
+            });
+    }
+
+    // Runs an EC operation off the UI thread, then shows the resulting state.
+    // On failure the display goes back to what the EC last confirmed.
+    private async Task RunAsync(
+        Func<Task<PerformanceState>> operation,
+        string failureMessage,
+        Action<PerformanceState> onSuccess)
     {
         _busy = true;
         UpdateButtonStates();
 
-        Exception? failure = null;
-        CpuBoost? cpu = null;
-        GpuBoost? gpu = null;
-
-        try
-        {
-            await _modeService.SetModeAsync(mode).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-        }
-
-        // Entering Custom reveals the boost selectors, so read what they hold.
-        // The mode change itself already succeeded if this fails.
-        if (failure is null && mode == PerformanceMode.Custom)
-        {
-            try
-            {
-                (cpu, gpu) = await _modeService.GetBoostsAsync().ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("Could not read the boost levels.", exception);
-            }
-        }
-
-        await PostToUiAsync(() =>
-        {
-            _busy = false;
-            UpdateButtonStates();
-
-            if (failure is null)
-            {
-                ShowState(mode, cpu, gpu);
-                AppLog.Info($"Performance mode set to {mode}.");
-
-                // Battery only allows Balanced, so there is nothing to
-                // remember, and it must not overwrite the plugged-in choice.
-                if (IsPluggedIn)
-                    ModeApplied?.Invoke(this, mode);
-
-                if (announce)
-                    StatusChanged?.Invoke(this, new SectionStatus($"Performance mode set to {mode}."));
-
-                return;
-            }
-
-            AppLog.Error($"Performance mode change to {mode} failed.", failure);
-
-            // Put the highlight back on what the EC last confirmed.
-            ShowState(_currentMode, _currentCpu, _currentGpu);
-            StatusChanged?.Invoke(this, new SectionStatus(
-                "Could not change the performance mode.",
-                IsError: true));
-        });
-    }
-
-    private Task SelectCpuAsync(CpuBoost level)
-    {
-        if (!CanChangeBoost() || level == _currentCpu)
-            return Task.CompletedTask;
-
-        return ApplyBoostAsync(
-            () => _modeService.SetCpuBoostAsync(level),
-            $"CPU boost {level}",
-            () =>
-            {
-                _currentCpu = level;
-                CpuBoostApplied?.Invoke(this, level);
-            });
-    }
-
-    private Task SelectGpuAsync(GpuBoost level)
-    {
-        if (!CanChangeBoost() || level == _currentGpu)
-            return Task.CompletedTask;
-
-        return ApplyBoostAsync(
-            () => _modeService.SetGpuBoostAsync(level),
-            $"GPU boost {level}",
-            () =>
-            {
-                _currentGpu = level;
-                GpuBoostApplied?.Invoke(this, level);
-            });
-    }
-
-    private bool CanChangeBoost() =>
-        !_busy && _currentMode == PerformanceMode.Custom && IsModeAllowed(PerformanceMode.Custom);
-
-    private async Task ApplyBoostAsync(Func<Task> write, string description, Action onSuccess)
-    {
-        _busy = true;
-        UpdateButtonStates();
-
+        PerformanceState? result = null;
         Exception? failure = null;
 
         try
         {
-            await write().ConfigureAwait(false);
+            result = await operation().ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -297,74 +260,49 @@ internal sealed class PerformanceSection : Panel
 
         await PostToUiAsync(() =>
         {
-            _busy = false;
-            UpdateButtonStates();
-
-            if (failure is null)
+            if (result is not null)
             {
-                onSuccess();
-                AppLog.Info($"{description} applied.");
+                ShowState(result);
+                onSuccess(result);
+                AppLog.Info($"Performance state is now {result.Mode} (CPU {result.Cpu}, GPU {result.Gpu}).");
+                StatusChanged?.Invoke(this, new SectionStatus("Performance profile applied."));
             }
             else
             {
-                AppLog.Error($"{description} failed.", failure);
-                StatusChanged?.Invoke(this, new SectionStatus(
-                    "Could not change the boost level.",
-                    IsError: true));
+                AppLog.Error(failureMessage, failure);
+                ShowState(_state);
+                StatusChanged?.Invoke(this, new SectionStatus(failureMessage, IsError: true));
             }
 
-            // Either way, show what the EC last confirmed.
-            _customRow.ShowBoosts(_currentCpu, _currentGpu);
+            EndBusy();
         });
     }
 
-    // Runs after the mode restore has settled, so the mode we hold is the
-    // EC's. Only writes levels that differ, and only in Custom on AC power.
-    private async Task RestoreBoostsAsync()
+    private void EndBusy()
     {
-        if (_savedCpu is null && _savedGpu is null)
-            return;
+        _busy = false;
+        UpdateButtonStates();
 
-        if (_currentMode != PerformanceMode.Custom || !IsModeAllowed(PerformanceMode.Custom))
-            return;
-
-        var changed = false;
-
-        try
+        // A plug or unplug arrived while we were busy.
+        if (_reapplyRequested)
         {
-            if (_savedCpu is CpuBoost cpu && cpu != _currentCpu)
-            {
-                await _modeService.SetCpuBoostAsync(cpu).ConfigureAwait(false);
-                changed = true;
-            }
+            _reapplyRequested = false;
 
-            if (_savedGpu is GpuBoost gpu && gpu != _currentGpu)
-            {
-                await _modeService.SetGpuBoostAsync(gpu).ConfigureAwait(false);
-                changed = true;
-            }
+            if (IsPluggedIn != _appliedSource)
+                _ = ApplyActiveProfileAsync();
         }
-        catch (Exception exception)
-        {
-            AppLog.Error("Could not restore the saved boost levels.", exception);
-        }
-
-        if (changed)
-            await RefreshAsync();
     }
 
-    private void ShowState(PerformanceMode? mode, CpuBoost? cpu, GpuBoost? gpu)
+    private void ShowState(PerformanceState state)
     {
-        _currentMode = mode;
-        _currentCpu = cpu;
-        _currentGpu = gpu;
+        _state = state;
 
         HighlightSelected(
             _buttons.Values,
-            mode is PerformanceMode known ? _buttons[known] : null);
+            state.Mode is PerformanceMode known ? _buttons[known] : null);
 
-        _customRow.ShowBoosts(cpu, gpu);
-        SetCustomRowShown(mode == PerformanceMode.Custom);
+        _customRow.ShowBoosts(state.Cpu, state.Gpu);
+        SetCustomRowShown(state.Mode == PerformanceMode.Custom);
     }
 
     private void SetCustomRowShown(bool shown)
@@ -381,18 +319,16 @@ internal sealed class PerformanceSection : Panel
             CustomRowVisibilityChanged?.Invoke(this, shown);
     }
 
+    private void UpdateSourceLabel() =>
+        _sourceLabel.Text = IsPluggedIn ? "Plugged in" : "On battery";
+
     private void UpdateButtonStates()
     {
-        foreach (var (mode, button) in _buttons)
-            button.Enabled = !_busy && IsModeAllowed(mode);
+        foreach (var button in _buttons.Values)
+            button.Enabled = !_busy;
 
-        _customRow.Enabled = !_busy && IsModeAllowed(PerformanceMode.Custom);
+        _customRow.Enabled = !_busy;
     }
-
-    private static T? ParseSaved<T>(string? value) where T : struct, Enum =>
-        Enum.TryParse<T>(value, out var parsed) && Enum.IsDefined(parsed)
-            ? parsed
-            : null;
 
     // Completes once the update has run, so callers can sequence on it.
     private Task PostToUiAsync(Action action)
