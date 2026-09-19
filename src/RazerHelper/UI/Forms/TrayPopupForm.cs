@@ -18,7 +18,7 @@ public sealed class TrayPopupForm : Form
     private const int ServicesRow = 5;
 
     private const int PerformanceBaseRowHeight = 124;
-    private const int FanRowHeight = 62; // Header and readouts only; no fan controls yet.
+    private const int FanRowHeight = 108; // Header, the two readouts and the taller Auto / Max buttons.
 
     private static readonly string ModelText = DeviceSupportService.SupportedModelName;
 

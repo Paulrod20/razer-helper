@@ -74,7 +74,9 @@ The app sends commands to the laptop's embedded controller over a standard Windo
 
 ## Disclaimer
 
-This app writes to your laptop's embedded controller. It only sends commands that were verified on a Blade 16 (2023), but you use it at your own risk.
+This app changes how your laptop behaves: it writes to the laptop's embedded controller, and it can stop and disable Windows services. It only sends commands that were verified on a Blade 16 (2023), but **you use it at your own risk.**
+
+This software is provided "as is", without warranty of any kind. **The author is not responsible for anything that breaks, stops working, or is lost as a result of using it**, including damage to your laptop, changes to performance, battery or thermal behavior, problems with Razer software or Razer devices, or data loss. This is the same no-warranty and no-liability position the [MIT license](LICENSE) already sets out; this section is a plain-language reminder of it. If that isn't acceptable to you, please don't use the app.
 
 ## License
 
