@@ -15,26 +15,19 @@ namespace RazerHelper.UI.Sections;
 /// <remarks>
 /// The EC is the source of truth for what is shown: the display is refreshed
 /// from it when the popup opens, so a change made outside the app appears.
-/// Like Synapse, only Balanced is offered on battery; Silent, Custom and the
-/// boost selectors are greyed out until the charger is connected. That is
-/// Synapse policy rather than a hardware limit: the EC does accept them on
-/// battery (checked on a Blade 16).
+/// What is allowed and what gets stored is decided by
+/// <see cref="PowerProfileRules"/>; this control only wires that to the UI.
 /// </remarks>
-internal sealed class PerformanceSection : Panel
+internal sealed class PerformanceSection : SectionPanel
 {
-    private readonly PerformanceModeService _modeService = new();
-    private readonly PowerSourceService _powerSourceService;
+    private readonly PerformanceService _performanceService;
+    private readonly IPowerSource _powerSource;
     private readonly Dictionary<PerformanceMode, Button> _buttons = [];
     private readonly CustomBoostRow _customRow = new();
     private readonly Label _sourceLabel;
 
     // Keyed by "plugged in".
     private readonly Dictionary<bool, PowerProfile> _profiles;
-
-    // Hardware and power events arrive on other threads. Post UI updates
-    // through the UI thread's context rather than relying on this control's
-    // handle, which does not exist until the popup is first shown.
-    private readonly SynchronizationContext _uiContext;
 
     private PerformanceState _state = PerformanceState.Unknown;
     private bool? _appliedSource;
@@ -46,24 +39,19 @@ internal sealed class PerformanceSection : Panel
     private bool _isCustomRowShown;
 
     public PerformanceSection(
+        PerformanceService performanceService,
+        IPowerSource powerSource,
         PowerProfile? pluggedInProfile,
-        PowerProfile? onBatteryProfile,
-        PowerSourceService powerSourceService)
+        PowerProfile? onBatteryProfile)
     {
-        _powerSourceService = powerSourceService;
-        _uiContext = SynchronizationContext.Current
-            ?? new WindowsFormsSynchronizationContext();
+        _performanceService = performanceService;
+        _powerSource = powerSource;
 
         _profiles = new Dictionary<bool, PowerProfile>
         {
-            [true] = pluggedInProfile ?? new PowerProfile(),
-            [false] = OnlyBalanced(onBatteryProfile ?? PowerProfile.DefaultOnBattery)
+            [true] = PowerProfileRules.Sanitize(pluggedInProfile ?? new PowerProfile(), pluggedIn: true),
+            [false] = PowerProfileRules.Sanitize(onBatteryProfile ?? PowerProfile.DefaultOnBattery, pluggedIn: false)
         };
-
-        BackColor = BackgroundColor;
-        Dock = DockStyle.Fill;
-        Margin = new Padding(0, 0, 0, 8);
-        Padding = Padding.Empty;
 
         // Synapse's order. Enum.GetValues would sort by wire byte instead.
         PerformanceMode[] modes = [PerformanceMode.Balanced, PerformanceMode.Silent, PerformanceMode.Custom];
@@ -106,7 +94,7 @@ internal sealed class PerformanceSection : Panel
         UpdateSourceLabel();
         UpdateButtonStates();
 
-        _powerSourceService.PowerSourceChanged += PowerSourceService_PowerSourceChanged;
+        _powerSource.PowerSourceChanged += PowerSource_PowerSourceChanged;
     }
 
     /// <summary>Raised after the user changes a profile and the EC confirms it.</summary>
@@ -135,7 +123,7 @@ internal sealed class PerformanceSection : Panel
 
         try
         {
-            state = await _modeService.ReadStateAsync().ConfigureAwait(false);
+            state = await _performanceService.ReadStateAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -152,35 +140,16 @@ internal sealed class PerformanceSection : Panel
     protected override void Dispose(bool disposing)
     {
         if (disposing)
-        {
-            _powerSourceService.PowerSourceChanged -= PowerSourceService_PowerSourceChanged;
-            _modeService.Dispose();
-        }
+            _powerSource.PowerSourceChanged -= PowerSource_PowerSourceChanged;
 
         base.Dispose(disposing);
     }
 
-    // Unknown power state (no battery reported) counts as plugged in.
-    private bool IsPluggedIn => _powerSourceService.IsPluggedIn != false;
+    private bool IsPluggedIn => PowerProfileRules.TreatAsPluggedIn(_powerSource.IsPluggedIn);
 
     private PowerProfile ActiveProfile => _profiles[IsPluggedIn];
 
-    // On battery only Balanced is offered, as in Synapse.
-    private bool IsModeAllowed(PerformanceMode mode) =>
-        IsPluggedIn || mode == PerformanceMode.Balanced;
-
-    // Boost levels belong to Custom, so they follow Custom's availability.
-    private bool CanChangeBoost =>
-        _state.Mode == PerformanceMode.Custom && IsModeAllowed(PerformanceMode.Custom);
-
-    // A battery profile saved by an earlier version may hold a mode that is
-    // no longer offered there; never apply one.
-    private static PowerProfile OnlyBalanced(PowerProfile profile) =>
-        profile.Mode is null or PerformanceMode.Balanced
-            ? profile
-            : profile with { Mode = PerformanceMode.Balanced };
-
-    private void PowerSourceService_PowerSourceChanged(object? sender, EventArgs e) =>
+    private void PowerSource_PowerSourceChanged(object? sender, EventArgs e) =>
         _ = PostToUiAsync(() =>
         {
             UpdateSourceLabel();
@@ -205,23 +174,23 @@ internal sealed class PerformanceSection : Panel
         var profile = _profiles[source];
 
         return RunAsync(
-            () => _modeService.ApplyProfileAsync(profile),
+            () => _performanceService.ApplyProfileAsync(profile),
             "Could not apply the power profile.",
             _ => _appliedSource = source);
     }
 
     private Task SelectModeAsync(PerformanceMode mode) =>
-        mode == _state.Mode || !IsModeAllowed(mode)
-            ? Task.CompletedTask // Would only rewrite what the EC already has.
+        mode == _state.Mode || !PowerProfileRules.IsModeAllowed(mode, IsPluggedIn)
+            ? Task.CompletedTask // Already there, or not offered on this power source.
             : ChangeProfileAsync(profile => profile with { Mode = mode }, "Could not change the performance mode.");
 
     private Task SelectCpuAsync(CpuBoost level) =>
-        !CanChangeBoost || level == _state.Cpu
+        !PowerProfileRules.CanChangeBoost(_state, IsPluggedIn) || level == _state.Cpu
             ? Task.CompletedTask
             : ChangeProfileAsync(profile => profile with { Cpu = level }, "Could not change the boost level.");
 
     private Task SelectGpuAsync(GpuBoost level) =>
-        !CanChangeBoost || level == _state.Gpu
+        !PowerProfileRules.CanChangeBoost(_state, IsPluggedIn) || level == _state.Gpu
             ? Task.CompletedTask
             : ChangeProfileAsync(profile => profile with { Gpu = level }, "Could not change the boost level.");
 
@@ -234,19 +203,11 @@ internal sealed class PerformanceSection : Panel
         var edited = edit(_profiles[source]);
 
         return RunAsync(
-            () => _modeService.ApplyProfileAsync(edited),
+            () => _performanceService.ApplyProfileAsync(edited),
             failureMessage,
             state =>
             {
-                // Keep what the EC really ended up in, so the stored profile
-                // is fully specified. Boost levels the EC does not report
-                // (outside Custom) stay as they were for the next Custom.
-                var saved = edited with
-                {
-                    Mode = state.Mode ?? edited.Mode,
-                    Cpu = state.Cpu ?? edited.Cpu,
-                    Gpu = state.Gpu ?? edited.Gpu
-                };
+                var saved = PowerProfileRules.Remember(edited, state);
 
                 _profiles[source] = saved;
                 _appliedSource = source;
@@ -342,30 +303,11 @@ internal sealed class PerformanceSection : Panel
 
     private void UpdateButtonStates()
     {
+        var pluggedIn = IsPluggedIn;
+
         foreach (var (mode, button) in _buttons)
-            button.Enabled = !_busy && IsModeAllowed(mode);
+            button.Enabled = !_busy && PowerProfileRules.IsModeAllowed(mode, pluggedIn);
 
-        _customRow.Enabled = !_busy && CanChangeBoost;
-    }
-
-    // Completes once the update has run, so callers can sequence on it.
-    private Task PostToUiAsync(Action action)
-    {
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        _uiContext.Post(_ =>
-        {
-            try
-            {
-                if (!IsDisposed)
-                    action();
-            }
-            finally
-            {
-                completion.SetResult();
-            }
-        }, null);
-
-        return completion.Task;
+        _customRow.Enabled = !_busy && PowerProfileRules.CanChangeBoost(_state, pluggedIn);
     }
 }

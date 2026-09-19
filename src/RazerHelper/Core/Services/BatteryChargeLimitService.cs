@@ -1,42 +1,43 @@
 using RazerHelper.Core.Hardware;
+using RazerHelper.Core.Models;
 
 namespace RazerHelper.Core.Services;
 
-public sealed class BatteryChargeLimitService : IDisposable
+internal sealed class BatteryChargeLimitService(IRazerTransport transport)
 {
-    private const ushort SetBatteryChargeLimitCommand = 0x0712;
     private const byte ChargeLimitEnabledFlag = 0x80;
     private const byte ChargeLimitDisabled = 0x50;
-
-    private readonly RazerHidTransport _transport = new();
 
     public Task SetChargeLimitAsync(int percentage) =>
         Task.Run(() => SetChargeLimit(percentage));
 
-    public void Dispose() => _transport.Dispose();
-
-    private void SetChargeLimit(int percentage)
+    /// <summary>
+    /// The byte the EC expects: bit 7 set plus the percentage when a limit is
+    /// on, or 0x50 (bit 7 clear) for no limit.
+    /// </summary>
+    internal static byte ToWireValue(int percentage)
     {
-        if (percentage is not (60 or 80 or 100))
+        if (!BatteryLimitRange.IsValid(percentage))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(percentage),
                 percentage,
-                "The charge limit must be 60, 80, or 100 percent.");
+                $"The charge limit must be {BatteryLimitRange.Minimum} to " +
+                $"{BatteryLimitRange.Maximum} percent in steps of {BatteryLimitRange.Step}.");
         }
 
-        var wireValue = percentage == 100
+        return percentage == BatteryLimitRange.NoLimit
             ? ChargeLimitDisabled
             : (byte)(ChargeLimitEnabledFlag | percentage);
+    }
 
-        var response = _transport.Send(
-            SetBatteryChargeLimitCommand,
-            [wireValue]);
+    private void SetChargeLimit(int percentage)
+    {
+        var wireValue = ToWireValue(percentage);
 
-        if (RazerHidPacket.GetArgument(response, 0) != wireValue)
-        {
-            throw new InvalidOperationException(
-                "The Razer Blade did not confirm the battery charge-limit change.");
-        }
+        transport.SendAndConfirm(
+            RazerCommands.SetBatteryChargeLimit,
+            [wireValue],
+            "the battery charge limit");
     }
 }

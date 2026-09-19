@@ -5,7 +5,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace RazerHelper.Core.Hardware;
 
-internal sealed class RazerHidTransport : IDisposable
+internal sealed class RazerHidTransport : IRazerTransport, IDisposable
 {
     private const int RazerVendorId = 0x1532;
     private const int Blade16_2023ProductId = 0x029F;
@@ -16,8 +16,8 @@ internal sealed class RazerHidTransport : IDisposable
     private const uint FileShareWrite = 0x00000002;
     private const uint OpenExisting = 3;
 
-    // All services share the same physical EC command channel. Serializing
-    // process-wide prevents fan reads and setting writes from consuming each
+    // All services share one physical EC command channel. Serializing
+    // process-wide keeps fan reads and setting writes from consuming each
     // other's responses when they happen at the same time.
     private static readonly Lock DeviceSyncRoot = new();
     private SafeFileHandle? _deviceHandle;

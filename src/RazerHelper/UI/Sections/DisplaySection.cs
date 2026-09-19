@@ -1,3 +1,4 @@
+using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
 using static RazerHelper.UI.UiControls;
 using static RazerHelper.UI.UiTheme;
@@ -5,42 +6,27 @@ using static RazerHelper.UI.UiTheme;
 namespace RazerHelper.UI.Sections;
 
 /// <summary>
-/// Refresh-rate controls: fixed 60/120 Hz or Auto, which follows the power
-/// source. Owns the display service, uses the shared power-source service, and reports the chosen
-/// mode through an event so the host can persist it.
+/// Refresh-rate controls: a fixed rate or Auto, which follows the power
+/// source. Reports the chosen mode through an event so the host can persist it.
 /// </summary>
-internal sealed class DisplaySection : Panel
+internal sealed class DisplaySection : SectionPanel
 {
-    private const string AutoMode = "Auto";
-    private const int PluggedInRefreshRateHz = 120;
-    private const int OnBatteryRefreshRateHz = 60;
-
-    private readonly DisplayService _displayService = new();
-    private readonly PowerSourceService _powerSourceService;
+    private readonly DisplayService _displayService;
+    private readonly IPowerSource _powerSource;
+    private readonly DisplayRefreshMode? _savedMode;
     private readonly Label _statusLabel;
-    private readonly Button[] _modeButtons;
-    private readonly string? _savedMode;
+    private readonly Dictionary<DisplayRefreshMode, Button> _buttons = [];
 
-    // Power events arrive on a system thread. Post through the UI thread's
-    // context instead of depending on this control's window handle existing.
-    private readonly SynchronizationContext _uiContext;
+    private DisplayRefreshMode? _selectedMode;
 
-    private bool _isAutoEnabled;
-
-    public DisplaySection(string? savedMode, PowerSourceService powerSourceService)
+    public DisplaySection(
+        DisplayService displayService,
+        IPowerSource powerSource,
+        DisplayRefreshMode? savedMode)
     {
+        _displayService = displayService;
+        _powerSource = powerSource;
         _savedMode = savedMode;
-        _powerSourceService = powerSourceService;
-
-        // Read here rather than in a field initializer: those run before the
-        // Control base constructor, which is what may install the context.
-        _uiContext = SynchronizationContext.Current
-            ?? new WindowsFormsSynchronizationContext();
-
-        BackColor = BackgroundColor;
-        Dock = DockStyle.Fill;
-        Margin = new Padding(0, 0, 0, 8);
-        Padding = Padding.Empty;
 
         var header = CreateTwoColumnLayout(60F, 40F);
         header.Dock = DockStyle.Top;
@@ -59,111 +45,83 @@ internal sealed class DisplaySection : Panel
         header.Controls.Add(CreateSectionLabel("Display"), 0, 0);
         header.Controls.Add(_statusLabel, 1, 0);
 
-        var modeGrid = CreateButtonGrid(["60 Hz", "120 Hz", AutoMode], "RefreshRateButton");
-        _modeButtons = modeGrid.Controls.OfType<Button>().ToArray();
+        var modes = DisplayRefreshMode.Offered;
+        var grid = CreateButtonGrid(modes.Select(mode => mode.Label).ToArray(), "RefreshRateButton");
 
-        foreach (var button in _modeButtons)
-            button.Click += ModeButton_Click;
+        foreach (var button in grid.Controls.OfType<Button>())
+        {
+            var mode = modes.First(candidate => candidate.Label == (string)button.Tag!);
+            _buttons[mode] = button;
+            button.Click += (_, _) => SelectMode(mode);
+        }
 
-        Controls.Add(modeGrid);
+        Controls.Add(grid);
         Controls.Add(header);
 
-        _powerSourceService.PowerSourceChanged += PowerSourceService_PowerSourceChanged;
+        _powerSource.PowerSourceChanged += PowerSource_PowerSourceChanged;
     }
 
-    /// <summary>Raised with the button label ("60 Hz", "120 Hz", "Auto") after a mode is chosen.</summary>
-    public event EventHandler<string>? DisplayModeChanged;
+    /// <summary>Raised after a mode is chosen and applied.</summary>
+    public event EventHandler<DisplayRefreshMode>? DisplayModeChanged;
 
     /// <summary>Re-selects the saved mode, applies it if it is Auto, and shows the current mode.</summary>
     public void Restore()
     {
-        RestoreSavedMode();
+        if (_savedMode is not null && _buttons.ContainsKey(_savedMode))
+        {
+            Select(_savedMode);
+
+            if (_savedMode.IsAuto)
+                ApplyAuto();
+        }
+
         UpdateDisplayStatus();
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
-        {
-            _powerSourceService.PowerSourceChanged -= PowerSourceService_PowerSourceChanged;
-        }
+            _powerSource.PowerSourceChanged -= PowerSource_PowerSourceChanged;
 
         base.Dispose(disposing);
     }
 
-    private void ModeButton_Click(object? sender, EventArgs e)
+    private void SelectMode(DisplayRefreshMode mode)
     {
-        if (sender is not Button selected)
-            return;
-
-        if (selected.Text == AutoMode)
+        if (mode.IsAuto)
         {
-            _isAutoEnabled = true;
-            SelectModeButton(selected);
-            DisplayModeChanged?.Invoke(this, selected.Text);
-            ApplyAutoRefreshRate();
+            Select(mode);
+            DisplayModeChanged?.Invoke(this, mode);
+            ApplyAuto();
             return;
         }
 
-        _isAutoEnabled = false;
-
-        var refreshRateText = selected.Text.Replace(" Hz", string.Empty);
-
-        if (!int.TryParse(refreshRateText, out var requestedRefreshRate))
-        {
-            _statusLabel.Text = "Invalid refresh-rate selection.";
-            return;
-        }
-
-        if (!_displayService.TrySetPrimaryRefreshRate(
-            requestedRefreshRate,
-            out var message))
+        if (!_displayService.TrySetPrimaryRefreshRate(mode.FixedHz!.Value, out var message))
         {
             _statusLabel.Text = message;
             return;
         }
 
-        SelectModeButton(selected);
-        DisplayModeChanged?.Invoke(this, selected.Text);
+        Select(mode);
+        DisplayModeChanged?.Invoke(this, mode);
         UpdateDisplayStatus();
     }
 
-    private void RestoreSavedMode()
+    private void Select(DisplayRefreshMode mode)
     {
-        if (string.IsNullOrWhiteSpace(_savedMode))
-            return;
-
-        var selected = _modeButtons.FirstOrDefault(button =>
-            string.Equals(button.Text, _savedMode, StringComparison.Ordinal));
-
-        if (selected is null)
-            return;
-
-        SelectModeButton(selected);
-        _isAutoEnabled = selected.Text == AutoMode;
-
-        if (_isAutoEnabled)
-            ApplyAutoRefreshRate();
+        _selectedMode = mode;
+        HighlightSelected(_buttons.Values, _buttons[mode]);
     }
 
-    private void PowerSourceService_PowerSourceChanged(object? sender, EventArgs e)
+    private void PowerSource_PowerSourceChanged(object? sender, EventArgs e)
     {
-        if (!_isAutoEnabled)
-            return;
-
-        _uiContext.Post(_ =>
-        {
-            if (!IsDisposed)
-                ApplyAutoRefreshRate();
-        }, null);
+        if (_selectedMode?.IsAuto == true)
+            PostToUi(ApplyAuto);
     }
 
-    private void SelectModeButton(Button selected) =>
-        HighlightSelected(_modeButtons, selected);
-
-    private void ApplyAutoRefreshRate()
+    private void ApplyAuto()
     {
-        var isPluggedIn = _powerSourceService.IsPluggedIn;
+        var isPluggedIn = _powerSource.IsPluggedIn;
 
         if (isPluggedIn is null)
         {
@@ -171,15 +129,10 @@ internal sealed class DisplaySection : Panel
             return;
         }
 
-        var requestedRefreshRate = isPluggedIn.Value
-            ? PluggedInRefreshRateHz
-            : OnBatteryRefreshRateHz;
-        var displayInfo = _displayService.GetPrimaryDisplayInfo();
+        var targetHz = DisplayRefreshMode.Auto.TargetHz(isPluggedIn.Value);
 
-        if (displayInfo?.RefreshRateHz != requestedRefreshRate &&
-            !_displayService.TrySetPrimaryRefreshRate(
-                requestedRefreshRate,
-                out var message))
+        if (_displayService.GetPrimaryDisplayInfo()?.RefreshRateHz != targetHz &&
+            !_displayService.TrySetPrimaryRefreshRate(targetHz, out var message))
         {
             _statusLabel.Text = message;
             return;

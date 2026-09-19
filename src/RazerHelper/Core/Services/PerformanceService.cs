@@ -4,20 +4,15 @@ using RazerHelper.Core.Models;
 
 namespace RazerHelper.Core.Services;
 
-public sealed class PerformanceModeService : IDisposable
+/// <summary>Reads and changes the EC's performance mode and, in Custom, its CPU and GPU boost levels.</summary>
+internal sealed class PerformanceService(IRazerTransport transport)
 {
-    private const ushort SetPerformanceModeCommand = 0x0D02;
-    private const ushort GetPerformanceModeCommand = 0x0D82;
-    private const ushort SetBoostCommand = 0x0D07;
-    private const ushort GetBoostCommand = 0x0D87;
     private const byte FanModeAuto = 0x00;
     private const byte CpuCluster = 0x01;
     private const byte GpuCluster = 0x02;
 
     // The EC keeps the mode per zone (CPU and GPU) and expects both written.
     private static readonly byte[] Zones = [0x01, 0x02];
-
-    private readonly RazerHidTransport _transport = new();
 
     /// <summary>What the EC holds now. Boost levels are only read in Custom mode.</summary>
     public Task<PerformanceState> ReadStateAsync() => Task.Run(ReadState);
@@ -27,7 +22,9 @@ public sealed class PerformanceModeService : IDisposable
     /// and returns the state it ended up in. Fields the profile leaves null
     /// are left alone.
     /// </summary>
-    public Task<PerformanceState> ApplyProfileAsync(PowerProfile profile) => Task.Run(() =>
+    public Task<PerformanceState> ApplyProfileAsync(PowerProfile profile) => Task.Run(() => ApplyProfile(profile));
+
+    internal PerformanceState ApplyProfile(PowerProfile profile)
     {
         var state = ReadState();
 
@@ -59,11 +56,9 @@ public sealed class PerformanceModeService : IDisposable
         }
 
         return state;
-    });
+    }
 
-    public void Dispose() => _transport.Dispose();
-
-    private PerformanceState ReadState()
+    internal PerformanceState ReadState()
     {
         var mode = GetMode();
 
@@ -103,7 +98,7 @@ public sealed class PerformanceModeService : IDisposable
 
     private byte ReadZoneMode(byte zone)
     {
-        var response = _transport.Send(GetPerformanceModeCommand, [0x00, zone, 0x00, 0x00]);
+        var response = transport.Send(RazerCommands.GetPerformanceMode, [0x00, zone, 0x00, 0x00]);
 
         if (RazerHidPacket.GetArgument(response, 1) != zone)
             throw new InvalidOperationException("The performance-mode response used an unexpected zone.");
@@ -115,8 +110,8 @@ public sealed class PerformanceModeService : IDisposable
     {
         foreach (var zone in Zones)
         {
-            SendAndConfirm(
-                SetPerformanceModeCommand,
+            transport.SendAndConfirm(
+                RazerCommands.SetPerformanceMode,
                 [0x01, zone, (byte)mode, FanModeAuto],
                 $"performance mode {mode} for zone {zone}");
         }
@@ -124,7 +119,7 @@ public sealed class PerformanceModeService : IDisposable
 
     private byte ReadBoost(byte cluster)
     {
-        var response = _transport.Send(GetBoostCommand, [0x00, cluster, 0x00]);
+        var response = transport.Send(RazerCommands.GetBoost, [0x00, cluster, 0x00]);
 
         if (RazerHidPacket.GetArgument(response, 1) != cluster)
             throw new InvalidOperationException("The boost response used an unexpected cluster.");
@@ -139,22 +134,9 @@ public sealed class PerformanceModeService : IDisposable
         if (GetMode() != PerformanceMode.Custom)
             throw new InvalidOperationException("Boost levels can only be changed in Custom mode.");
 
-        SendAndConfirm(
-            SetBoostCommand,
+        transport.SendAndConfirm(
+            RazerCommands.SetBoost,
             [0x01, cluster, level],
             $"boost level {level} for cluster {cluster}");
-    }
-
-    // The EC echoes the arguments it accepted; anything else means the write
-    // did not take effect.
-    private void SendAndConfirm(ushort command, byte[] arguments, string description)
-    {
-        var response = _transport.Send(command, arguments);
-
-        for (var index = 0; index < arguments.Length; index++)
-        {
-            if (RazerHidPacket.GetArgument(response, index) != arguments[index])
-                throw new InvalidOperationException($"The Razer Blade did not confirm {description}.");
-        }
     }
 }

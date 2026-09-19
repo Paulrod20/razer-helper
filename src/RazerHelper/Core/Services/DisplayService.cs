@@ -3,7 +3,7 @@ using RazerHelper.Core.Models;
 
 namespace RazerHelper.Core.Services;
 
-public sealed class DisplayService
+internal sealed class DisplayService
 {
     private const int EnumCurrentSettings = -1;
     private const int ChangeSuccessful = 0;

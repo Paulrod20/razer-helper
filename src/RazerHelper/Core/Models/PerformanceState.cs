@@ -5,7 +5,7 @@ namespace RazerHelper.Core.Models;
 /// so they are null in every other mode. A null Mode means unreadable or a
 /// mode this app does not offer.
 /// </summary>
-public sealed record PerformanceState(
+internal sealed record PerformanceState(
     PerformanceMode? Mode,
     CpuBoost? Cpu,
     GpuBoost? Gpu)

@@ -5,7 +5,7 @@ namespace RazerHelper.Core.Models;
 /// The EC also accepts 4 for the CPU overclock toggle, which is handled
 /// separately from this selector.
 /// </summary>
-public enum CpuBoost : byte
+internal enum CpuBoost : byte
 {
     Low = 0,
     Medium = 1,

@@ -6,7 +6,7 @@ namespace RazerHelper.Core.Diagnostics;
 /// Minimal file log so failures are visible in release builds, where
 /// Debug output is discarded. Logging never throws.
 /// </summary>
-public static class AppLog
+internal static class AppLog
 {
     private const long MaximumLogBytes = 512 * 1024;
 

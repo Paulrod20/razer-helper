@@ -1,6 +1,6 @@
 namespace RazerHelper.Core.Models;
 
-public sealed record FanRpmReading(
+internal sealed record FanRpmReading(
     int CpuFanRpm,
     int GpuFanRpm
 );

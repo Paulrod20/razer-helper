@@ -1,4 +1,5 @@
 using RazerHelper.Core.Diagnostics;
+using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
 using static RazerHelper.UI.UiControls;
 using static RazerHelper.UI.UiTheme;
@@ -6,17 +7,12 @@ using static RazerHelper.UI.UiTheme;
 namespace RazerHelper.UI.Sections;
 
 /// <summary>
-/// Battery charge-limit slider. Owns the charge-limit service and reports
-/// results through events so the host decides how to persist and display them.
+/// Battery charge-limit slider. Reports its results
+/// through events so the host decides how to persist and display them.
 /// </summary>
-internal sealed class BatterySection : Panel
+internal sealed class BatterySection : SectionPanel
 {
-    private const int DefaultLimit = 100;
-    private const int LimitStep = 20;
-    private const int MinimumLimit = 60;
-    private const int MaximumLimit = 100;
-
-    private readonly BatteryChargeLimitService _chargeLimitService = new();
+    private readonly BatteryChargeLimitService _chargeLimitService;
     private readonly ThemedSlider _slider;
     private readonly Label _limitLabel;
 
@@ -25,16 +21,12 @@ internal sealed class BatterySection : Panel
     private int? _appliedLimit;
     private bool _updateInProgress;
 
-    public BatterySection(int? savedLimit)
+    public BatterySection(BatteryChargeLimitService chargeLimitService, int? savedLimit)
     {
+        _chargeLimitService = chargeLimitService;
         _appliedLimit = savedLimit;
 
-        var initialLimit = NormalizeLimit(savedLimit ?? DefaultLimit);
-
-        BackColor = BackgroundColor;
-        Dock = DockStyle.Fill;
-        Margin = new Padding(0, 0, 0, 8);
-        Padding = Padding.Empty;
+        var initialLimit = BatteryLimitRange.Normalize(savedLimit ?? BatteryLimitRange.NoLimit);
 
         var header = new TableLayoutPanel
         {
@@ -88,7 +80,7 @@ internal sealed class BatterySection : Panel
         header.Controls.Add(CreateSectionLabel("Battery Charge Limit"), 0, 0);
         header.Controls.Add(batteryValues, 1, 0);
 
-        _slider = new ThemedSlider(MinimumLimit, MaximumLimit, LimitStep)
+        _slider = new ThemedSlider(BatteryLimitRange.Minimum, BatteryLimitRange.Maximum, BatteryLimitRange.Step)
         {
             Dock = DockStyle.Top,
             Value = initialLimit
@@ -123,7 +115,7 @@ internal sealed class BatterySection : Panel
 
         try
         {
-            await _chargeLimitService.SetChargeLimitAsync(NormalizeLimit(savedLimit));
+            await _chargeLimitService.SetChargeLimitAsync(BatteryLimitRange.Normalize(savedLimit));
         }
         catch (Exception exception)
         {
@@ -131,14 +123,6 @@ internal sealed class BatterySection : Panel
                 $"Could not restore the saved battery charge limit ({savedLimit}%).",
                 exception);
         }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            _chargeLimitService.Dispose();
-
-        base.Dispose(disposing);
     }
 
     private async Task CommitAsync()
@@ -165,7 +149,7 @@ internal sealed class BatterySection : Panel
             _appliedLimit = requestedLimit;
             ChargeLimitApplied?.Invoke(this, requestedLimit);
 
-            StatusChanged?.Invoke(this, new SectionStatus(requestedLimit == MaximumLimit
+            StatusChanged?.Invoke(this, new SectionStatus(requestedLimit == BatteryLimitRange.NoLimit
                 ? "Battery charge limit disabled. Charging is allowed to 100%."
                 : $"Battery charge limit set to {requestedLimit}%."));
         }
@@ -175,7 +159,7 @@ internal sealed class BatterySection : Panel
                 $"Battery charge-limit change to {requestedLimit}% failed.",
                 exception);
 
-            _slider.Value = NormalizeLimit(previousLimit ?? DefaultLimit);
+            _slider.Value = BatteryLimitRange.Normalize(previousLimit ?? BatteryLimitRange.NoLimit);
 
             StatusChanged?.Invoke(this, new SectionStatus(
                 "Could not change the battery charge limit.",
@@ -186,13 +170,5 @@ internal sealed class BatterySection : Panel
             _slider.Enabled = true;
             _updateInProgress = false;
         }
-    }
-
-    private static int NormalizeLimit(int value)
-    {
-        var clampedValue = Math.Clamp(value, MinimumLimit, MaximumLimit);
-        return (int)Math.Round(
-            (clampedValue - MinimumLimit) / (double)LimitStep,
-            MidpointRounding.AwayFromZero) * LimitStep + MinimumLimit;
     }
 }

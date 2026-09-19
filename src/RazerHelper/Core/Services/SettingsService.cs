@@ -5,7 +5,7 @@ using RazerHelper.Core.Models;
 
 namespace RazerHelper.Core.Services;
 
-public sealed class SettingsService
+internal sealed class SettingsService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -18,11 +18,17 @@ public sealed class SettingsService
     private readonly string _settingsPath;
 
     public SettingsService()
-    {
-        _settingsDirectory = Path.Combine(
+        : this(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "RazerHelper");
-        _settingsPath = Path.Combine(_settingsDirectory, "settings.json");
+            "RazerHelper"))
+    {
+    }
+
+    /// <summary>Stores settings in the given folder instead of the user's profile, e.g. for tests.</summary>
+    internal SettingsService(string settingsDirectory)
+    {
+        _settingsDirectory = settingsDirectory;
+        _settingsPath = Path.Combine(settingsDirectory, "settings.json");
     }
 
     public AppSettings Load()

@@ -2,7 +2,7 @@
 
 namespace RazerHelper.Core.Services;
 
-public sealed class PowerSourceService : IDisposable
+internal sealed class PowerSourceService : IPowerSource, IDisposable
 {
     public PowerSourceService()
     {

@@ -5,13 +5,11 @@ using RazerHelper.Core.Models;
 
 namespace RazerHelper.Core.Services;
 
-public sealed class FanTelemetryService : IDisposable
+internal sealed class FanTelemetryService(IRazerTransport transport)
 {
-    private const ushort GetActualFanRpmCommand = 0x0D88;
     private const byte CpuFanZone = 0x01;
     private const byte GpuFanZone = 0x02;
 
-    private readonly RazerHidTransport _transport = new();
     private FanRpmReading? _publishedReading;
     private bool _stoppedReadingPending;
     private bool _readFailing;
@@ -45,8 +43,6 @@ public sealed class FanTelemetryService : IDisposable
         }
     });
 
-    public void Dispose() => _transport.Dispose();
-
     private FanRpmReading? Read()
     {
         var reading = new FanRpmReading(
@@ -58,8 +54,8 @@ public sealed class FanTelemetryService : IDisposable
 
     private int ReadFanRpm(byte fanZone)
     {
-        var response = _transport.Send(
-            GetActualFanRpmCommand,
+        var response = transport.Send(
+            RazerCommands.GetActualFanRpm,
             [0x00, fanZone, 0x00]);
 
         if (RazerHidPacket.GetArgument(response, 1) != fanZone)

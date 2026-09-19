@@ -12,4 +12,9 @@
     <PackageReference Include="HidSharp" Version="2.6.4" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Core types are internal; the test project needs to see them. -->
+    <InternalsVisibleTo Include="RazerHelper.Tests" />
+  </ItemGroup>
+
 </Project>

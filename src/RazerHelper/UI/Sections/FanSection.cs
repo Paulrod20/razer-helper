@@ -6,14 +6,14 @@ using static RazerHelper.UI.UiTheme;
 namespace RazerHelper.UI.Sections;
 
 /// <summary>
-/// CPU and GPU fan speed readout. Owns the telemetry service and polls it
+/// CPU and GPU fan speed readout. Polls the telemetry service
 /// only while the host says the popup is visible.
 /// </summary>
-internal sealed class FanSection : Panel
+internal sealed class FanSection : SectionPanel
 {
     private const int PollIntervalMilliseconds = 2_000;
 
-    private readonly FanTelemetryService _telemetryService = new();
+    private readonly FanTelemetryService _telemetryService;
     private readonly System.Windows.Forms.Timer _pollTimer = new()
     {
         Interval = PollIntervalMilliseconds
@@ -24,12 +24,9 @@ internal sealed class FanSection : Panel
     private bool _isPolling;
     private bool _refreshInProgress;
 
-    public FanSection()
+    public FanSection(FanTelemetryService telemetryService)
     {
-        BackColor = BackgroundColor;
-        Dock = DockStyle.Fill;
-        Margin = new Padding(0, 0, 0, 8);
-        Padding = Padding.Empty;
+        _telemetryService = telemetryService;
 
         _cpuFanLabel = CreateReadingLabel("CPU Fan: -- RPM", DockStyle.Left);
         _gpuFanLabel = CreateReadingLabel("GPU Fan: -- RPM", DockStyle.Right);
@@ -68,7 +65,6 @@ internal sealed class FanSection : Panel
             _pollTimer.Stop();
             _pollTimer.Tick -= PollTimer_Tick;
             _pollTimer.Dispose();
-            _telemetryService.Dispose();
         }
 
         base.Dispose(disposing);

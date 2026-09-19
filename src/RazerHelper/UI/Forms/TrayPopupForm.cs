@@ -1,4 +1,5 @@
 using RazerHelper.Core.Diagnostics;
+using RazerHelper.Core.Hardware;
 using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
 using RazerHelper.Helpers;
@@ -15,6 +16,8 @@ public sealed class TrayPopupForm : Form
 
     private bool _allowClose;
     private readonly SettingsService _settingsService = new();
+    // One EC connection shared by every service that talks to the hardware.
+    private readonly RazerHidTransport _transport = new();
     private readonly PowerSourceService _powerSourceService = new();
     private readonly BatterySection _batterySection;
     private readonly DisplaySection _displaySection;
@@ -28,20 +31,26 @@ public sealed class TrayPopupForm : Form
     {
         _settings = _settingsService.Load();
 
-        _fanSection = new FanSection();
+        _fanSection = new FanSection(new FanTelemetryService(_transport));
 
         _performanceSection = new PerformanceSection(
+            new PerformanceService(_transport),
+            _powerSourceService,
             _settings.PluggedInProfile,
-            _settings.OnBatteryProfile,
-            _powerSourceService);
+            _settings.OnBatteryProfile);
         _performanceSection.ProfileChanged += PerformanceSection_ProfileChanged;
         _performanceSection.CustomRowVisibilityChanged += PerformanceSection_CustomRowVisibilityChanged;
         _performanceSection.StatusChanged += Section_StatusChanged;
 
-        _displaySection = new DisplaySection(_settings.DisplayMode, _powerSourceService);
+        _displaySection = new DisplaySection(
+            new DisplayService(),
+            _powerSourceService,
+            DisplayRefreshMode.Parse(_settings.DisplayMode));
         _displaySection.DisplayModeChanged += DisplaySection_DisplayModeChanged;
 
-        _batterySection = new BatterySection(_settings.BatteryChargeLimit);
+        _batterySection = new BatterySection(
+            new BatteryChargeLimitService(_transport),
+            _settings.BatteryChargeLimit);
         _batterySection.ChargeLimitApplied += BatterySection_ChargeLimitApplied;
         _batterySection.StatusChanged += Section_StatusChanged;
 
@@ -180,8 +189,8 @@ public sealed class TrayPopupForm : Form
         _settingsService.Save(settings);
     }
 
-    private void DisplaySection_DisplayModeChanged(object? sender, string mode) =>
-        SaveSettings(_settings with { DisplayMode = mode });
+    private void DisplaySection_DisplayModeChanged(object? sender, DisplayRefreshMode mode) =>
+        SaveSettings(_settings with { DisplayMode = mode.Label });
 
     private void PerformanceSection_ProfileChanged(object? sender, PowerProfileChange change) =>
         SaveSettings(change.PluggedIn
@@ -225,11 +234,15 @@ public sealed class TrayPopupForm : Form
 
     protected override void Dispose(bool disposing)
     {
-        // Sections unsubscribe from the shared service as they are disposed.
+        // Sections unsubscribe from the shared services as they are disposed,
+        // so those must go first; then the form releases what it created.
         base.Dispose(disposing);
 
         if (disposing)
+        {
             _powerSourceService.Dispose();
+            _transport.Dispose();
+        }
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)

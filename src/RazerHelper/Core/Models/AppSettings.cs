@@ -1,6 +1,6 @@
 namespace RazerHelper.Core.Models;
 
-public sealed record AppSettings(
+internal sealed record AppSettings(
     string? DisplayMode = null,
     int? BatteryChargeLimit = null,
     PowerProfile? PluggedInProfile = null,

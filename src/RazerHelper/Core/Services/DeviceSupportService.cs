@@ -2,7 +2,7 @@ using RazerHelper.Core.Hardware;
 
 namespace RazerHelper.Core.Services;
 
-public sealed class DeviceSupportService
+internal sealed class DeviceSupportService
 {
     public const string SupportedModelName = "Razer Blade 16 (2023)";
 
