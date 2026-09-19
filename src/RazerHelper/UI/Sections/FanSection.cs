@@ -1,4 +1,5 @@
 using RazerHelper.Core.Diagnostics;
+using RazerHelper.Core.Models;
 using RazerHelper.Core.Services;
 using static RazerHelper.UI.UiControls;
 using static RazerHelper.UI.UiTheme;
@@ -16,20 +17,27 @@ internal sealed class FanSection : SectionPanel
     // Each button plus its margins.
     private const int ModeButtonCellWidth = 140;
 
+    private const string MaxUnavailableHint = "Needs Custom mode, plugged in";
+
     private readonly FanTelemetryService _telemetryService;
+    private readonly IPowerSource _powerSource;
+    private readonly ThemedToolTip _toolTip = new();
     private readonly System.Windows.Forms.Timer _pollTimer = new()
     {
         Interval = PollIntervalMilliseconds
     };
     private readonly Label _cpuFanLabel;
     private readonly Label _gpuFanLabel;
+    private readonly Button _maxButton;
 
+    private PerformanceState _performanceState = PerformanceState.Unknown;
     private bool _isPolling;
     private bool _refreshInProgress;
 
-    public FanSection(FanTelemetryService telemetryService)
+    public FanSection(FanTelemetryService telemetryService, IPowerSource powerSource)
     {
         _telemetryService = telemetryService;
+        _powerSource = powerSource;
 
         _cpuFanLabel = CreateReadingLabel("CPU Fan: -- RPM");
         _gpuFanLabel = CreateReadingLabel("GPU Fan: -- RPM");
@@ -55,20 +63,21 @@ internal sealed class FanSection : SectionPanel
         readings.Controls.Add(_cpuFanLabel, 0, 0);
         readings.Controls.Add(_gpuFanLabel, 1, 0);
 
-        // Auto | Max, as in Synapse's "Max Fan Speed Mode". Not connected to the
-        // laptop yet, so both stay disabled (Auto shown as the current mode)
-        // rather than looking live and doing nothing.
+        // Auto | Max, as in Synapse's "Max Fan Speed Mode". Neither is connected
+        // to the laptop yet: Auto stays disabled (shown as the current mode), and
+        // Max only shows whether it will be available, and why not.
         var modeGrid = CreateButtonGrid(["Auto", "Max"], "FanModeButton");
         var modeButtons = modeGrid.Controls.OfType<Button>().ToArray();
+        var autoButton = modeButtons[0];
+        _maxButton = modeButtons[1];
 
         // Compact rather than full width, and left-aligned like the readout above.
         modeGrid.Dock = DockStyle.Left;
         modeGrid.Width = ModeButtonCellWidth * modeButtons.Length;
 
-        foreach (var button in modeButtons)
-            button.Enabled = false;
-
-        HighlightSelected(modeButtons, modeButtons[0]);
+        autoButton.Enabled = false;
+        HighlightSelected(modeButtons, autoButton);
+        UpdateMaxButton();
 
         // Dock order: the header docks first, then the readings, and the mode
         // buttons fill what is left.
@@ -77,6 +86,14 @@ internal sealed class FanSection : SectionPanel
         Controls.Add(CreateSectionHeader("Fans", string.Empty));
 
         _pollTimer.Tick += PollTimer_Tick;
+        _powerSource.PowerSourceChanged += PowerSource_PowerSourceChanged;
+    }
+
+    /// <summary>Tells the fan buttons which performance mode the laptop is in, since Max depends on it.</summary>
+    public void ShowPerformanceState(PerformanceState state)
+    {
+        _performanceState = state;
+        UpdateMaxButton();
     }
 
     /// <summary>Starts polling and takes an immediate reading.</summary>
@@ -100,9 +117,26 @@ internal sealed class FanSection : SectionPanel
             _pollTimer.Stop();
             _pollTimer.Tick -= PollTimer_Tick;
             _pollTimer.Dispose();
+            _powerSource.PowerSourceChanged -= PowerSource_PowerSourceChanged;
+            _toolTip.Dispose();
         }
 
         base.Dispose(disposing);
+    }
+
+    private void PowerSource_PowerSourceChanged(object? sender, EventArgs e) =>
+        PostToUi(UpdateMaxButton);
+
+    // Max is available in Custom mode, plugged in. When it is not, the button is
+    // drawn like a disabled one and hovering it says why. It is deliberately
+    // still enabled underneath: WinForms shows no tooltip on a disabled control.
+    // Once it is connected to the laptop its click handler must check availability.
+    private void UpdateMaxButton()
+    {
+        var pluggedIn = PowerProfileRules.TreatAsPluggedIn(_powerSource.IsPluggedIn);
+        var available = PowerProfileRules.CanUseMaxFan(_performanceState, pluggedIn);
+
+        SetAvailability(_maxButton, available, _toolTip, MaxUnavailableHint);
     }
 
     private async void PollTimer_Tick(object? sender, EventArgs e) =>

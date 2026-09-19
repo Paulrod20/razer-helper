@@ -25,6 +25,7 @@ internal sealed class PerformanceSection : SectionPanel
     private readonly Dictionary<PerformanceMode, Button> _buttons = [];
     private readonly CustomBoostRow _customRow = new();
     private readonly Label _sourceLabel;
+    private readonly ThemedToolTip _toolTip = new();
 
     // Keyed by "plugged in".
     private readonly Dictionary<bool, PowerProfile> _profiles;
@@ -103,6 +104,9 @@ internal sealed class PerformanceSection : SectionPanel
     /// <summary>Raised with a user-facing message about the last operation.</summary>
     public event EventHandler<SectionStatus>? StatusChanged;
 
+    /// <summary>Raised whenever the section shows a new state, so others (the fan buttons) can follow it.</summary>
+    public event EventHandler<PerformanceState>? StateChanged;
+
     /// <summary>Raised when the Custom row appears or disappears, so the host can resize.</summary>
     public event EventHandler<bool>? CustomRowVisibilityChanged;
 
@@ -140,7 +144,10 @@ internal sealed class PerformanceSection : SectionPanel
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             _powerSource.PowerSourceChanged -= PowerSource_PowerSourceChanged;
+            _toolTip.Dispose();
+        }
 
         base.Dispose(disposing);
     }
@@ -280,8 +287,13 @@ internal sealed class PerformanceSection : SectionPanel
             _buttons.Values,
             state.Mode is PerformanceMode known ? _buttons[known] : null);
 
+        // Highlighting resets the text colors, so redo the unavailable look.
+        UpdateButtonStates();
+
         _customRow.ShowBoosts(state.Cpu, state.Gpu);
         SetCustomRowShown(state.Mode == PerformanceMode.Custom);
+
+        StateChanged?.Invoke(this, state);
     }
 
     private void SetCustomRowShown(bool shown)
@@ -306,7 +318,17 @@ internal sealed class PerformanceSection : SectionPanel
         var pluggedIn = IsPluggedIn;
 
         foreach (var (mode, button) in _buttons)
-            button.Enabled = !_busy && PowerProfileRules.IsModeAllowed(mode, pluggedIn);
+        {
+            // Truly disabled only while a write is in flight. A mode that is not
+            // offered on this power source stays clickable underneath (the click
+            // handler refuses it) so hovering it can explain why.
+            button.Enabled = !_busy;
+            SetAvailability(
+                button,
+                PowerProfileRules.IsModeAllowed(mode, pluggedIn),
+                _toolTip,
+                "Needs to be plugged in");
+        }
 
         _customRow.Enabled = !_busy && PowerProfileRules.CanChangeBoost(_state, pluggedIn);
     }

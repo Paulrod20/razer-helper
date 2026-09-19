@@ -105,6 +105,23 @@ internal static class UiControls
         }
     }
 
+    /// <summary>
+    /// Draws a button as unavailable and says why on hover, or restores it.
+    /// The button stays enabled underneath, because WinForms shows no tooltip
+    /// on a disabled control; so its click handler must check availability
+    /// itself. An unavailable button also stays out of the keyboard focus order.
+    /// </summary>
+    public static void SetAvailability(Button button, bool available, ToolTip toolTip, string reasonWhenUnavailable)
+    {
+        // A selected button is green with dark text; the rest are dark with light text.
+        var normalText = button.BackColor == RazerGreen ? BackgroundColor : Color.White;
+
+        button.ForeColor = available ? normalText : SystemColors.GrayText;
+        button.Cursor = available ? Cursors.Hand : Cursors.Default;
+        button.TabStop = available;
+        toolTip.SetToolTip(button, available ? string.Empty : reasonWhenUnavailable);
+    }
+
     public static Button CreateActionButton(string text)
     {
         var button = new Button

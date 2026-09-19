@@ -18,6 +18,14 @@ internal static class PowerProfileRules
     public static bool IsModeAllowed(PerformanceMode mode, bool pluggedIn) =>
         pluggedIn || mode == PerformanceMode.Balanced;
 
+    /// <summary>
+    /// Max fan speed is a Custom-only setting (the EC rejects it elsewhere), and
+    /// like Custom itself it is offered only when plugged in. Synapse also
+    /// requires CPU Boost and GPU High; this deliberately does not, yet.
+    /// </summary>
+    public static bool CanUseMaxFan(PerformanceState state, bool pluggedIn) =>
+        state.Mode == PerformanceMode.Custom && IsModeAllowed(PerformanceMode.Custom, pluggedIn);
+
     /// <summary>Boost levels belong to Custom, so they follow Custom's availability.</summary>
     public static bool CanChangeBoost(PerformanceState state, bool pluggedIn) =>
         state.Mode == PerformanceMode.Custom && IsModeAllowed(PerformanceMode.Custom, pluggedIn);

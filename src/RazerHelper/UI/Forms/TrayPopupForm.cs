@@ -71,7 +71,7 @@ public sealed class TrayPopupForm : Form
 
         _settings = _settingsService.Load();
 
-        _fanSection = new FanSection(new FanTelemetryService(_transport));
+        _fanSection = new FanSection(new FanTelemetryService(_transport), _powerSource);
 
         _performanceSection = new PerformanceSection(
             new PerformanceService(_transport),
@@ -81,6 +81,7 @@ public sealed class TrayPopupForm : Form
         _performanceSection.ProfileChanged += PerformanceSection_ProfileChanged;
         _performanceSection.CustomRowVisibilityChanged += PerformanceSection_CustomRowVisibilityChanged;
         _performanceSection.StatusChanged += Section_StatusChanged;
+        _performanceSection.StateChanged += PerformanceSection_StateChanged;
 
         _displaySection = new DisplaySection(
             new DisplayService(),
@@ -282,6 +283,10 @@ public sealed class TrayPopupForm : Form
 
     private void ServicesSection_StartModesRecorded(object? sender, Dictionary<string, ServiceStartMode> modes) =>
         SaveSettings(_settings with { RazerServiceStartModes = modes });
+
+    // Max fan speed only exists in Custom mode, so the fan buttons follow the performance state.
+    private void PerformanceSection_StateChanged(object? sender, PerformanceState state) =>
+        _fanSection.ShowPerformanceState(state);
 
     private void PerformanceSection_CustomRowVisibilityChanged(object? sender, bool shown)
     {
