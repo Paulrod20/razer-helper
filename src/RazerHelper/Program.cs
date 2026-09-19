@@ -1,3 +1,5 @@
+using RazerHelper.Core.Diagnostics;
+using RazerHelper.Helpers;
 using RazerHelper.UI;
 using RazerHelper.UI.Forms;
 
@@ -19,7 +21,13 @@ namespace RazerHelper
                 out var isFirstInstance);
 
             if (!isFirstInstance)
+            {
+                AppLog.Info("Another RazerHelper is already running for this user; exiting.");
                 return;
+            }
+
+            AppDiagnostics.LogStart();
+            AppDiagnostics.InstallExceptionHandling(ShowError);
 
             ApplicationConfiguration.Initialize();
 
@@ -27,6 +35,11 @@ namespace RazerHelper
             using var trayHost = new TrayIconHost(trayPopup);
 
             Application.Run();
+
+            AppDiagnostics.LogExit();
         }
+
+        private static void ShowError(string message) =>
+            MessageBox.Show(message, "RazerHelper", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 }

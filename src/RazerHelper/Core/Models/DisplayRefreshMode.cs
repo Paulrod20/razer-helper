@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace RazerHelper.Core.Models;
 
 /// <summary>
@@ -36,7 +38,7 @@ internal sealed record DisplayRefreshMode(int? FixedHz)
 
         if (label is not null &&
             label.EndsWith(HertzSuffix, StringComparison.Ordinal) &&
-            int.TryParse(label.AsSpan(0, label.Length - HertzSuffix.Length), out var hertz) &&
+            int.TryParse(label.AsSpan(0, label.Length - HertzSuffix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var hertz) &&
             hertz > 0)
         {
             return Fixed(hertz);

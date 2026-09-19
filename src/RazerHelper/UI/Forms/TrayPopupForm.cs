@@ -59,7 +59,7 @@ public sealed class TrayPopupForm : Form
 
         ApplyTheme();
         BuildView();
-        ReportUnsupportedDevice();
+        CheckForSupportedDevice();
 
         _displaySection.Restore();
         _ = _batterySection.RestoreAsync();
@@ -171,10 +171,13 @@ public sealed class TrayPopupForm : Form
         _footerLabel.Text = status.IsError ? status.Message : FooterText;
     }
 
-    private void ReportUnsupportedDevice()
+    private void CheckForSupportedDevice()
     {
         if (new DeviceSupportService().IsSupportedDevicePresent())
+        {
+            AppLog.Info($"{DeviceSupportService.SupportedModelName} control interface found.");
             return;
+        }
 
         AppLog.Error($"{DeviceSupportService.SupportedModelName} control interface not found.");
 

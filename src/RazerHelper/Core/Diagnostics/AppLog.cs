@@ -11,10 +11,19 @@ internal static class AppLog
     private const long MaximumLogBytes = 512 * 1024;
 
     private static readonly Lock SyncRoot = new();
-    private static readonly string LogDirectory = Path.Combine(
+    private static string _logDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RazerHelper");
-    private static readonly string LogPath = Path.Combine(LogDirectory, "razerhelper.log");
+
+    /// <summary>The log file's full path, for telling the user where to look.</summary>
+    public static string LogFilePath => Path.Combine(_logDirectory, "razerhelper.log");
+
+    /// <summary>Writes the log to <paramref name="directory"/> instead of the user's profile, so tests never touch the real log.</summary>
+    internal static void RedirectTo(string directory)
+    {
+        lock (SyncRoot)
+            _logDirectory = directory;
+    }
 
     public static void Info(string message) => Write("INFO", message);
 
@@ -30,13 +39,16 @@ internal static class AppLog
         {
             try
             {
-                Directory.CreateDirectory(LogDirectory);
+                Directory.CreateDirectory(_logDirectory);
                 RotateIfTooLarge();
-                File.AppendAllText(LogPath, line);
+                File.AppendAllText(LogFilePath, line);
             }
-            catch (Exception exception) when (
-                exception is IOException or UnauthorizedAccessException)
+            catch (Exception exception)
             {
+                // Deliberately broad: the log is how failures get reported,
+                // including from the crash handler, so it must never be the
+                // thing that throws. A full disk or a locked file just means
+                // this one line is lost.
                 Debug.WriteLine($"Could not write the RazerHelper log: {exception.Message}");
             }
         }
@@ -45,9 +57,9 @@ internal static class AppLog
     // Keep one previous log so disk use stays bounded.
     private static void RotateIfTooLarge()
     {
-        var info = new FileInfo(LogPath);
+        var info = new FileInfo(LogFilePath);
 
         if (info.Exists && info.Length > MaximumLogBytes)
-            File.Move(LogPath, $"{LogPath}.old", overwrite: true);
+            File.Move(LogFilePath, $"{LogFilePath}.old", overwrite: true);
     }
 }
