@@ -1,20 +1,26 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 
 namespace RazerHelper.Core.Services;
 
 internal sealed class PowerSourceService : IPowerSource, IDisposable
 {
-    public PowerSourceService()
+    private readonly Func<bool?> _readPluggedIn;
+    private readonly object _sync = new();
+    private bool? _lastPluggedIn;
+
+    public PowerSourceService() : this(ReadWindowsPowerLine)
     {
         SystemEvents.PowerModeChanged += SystemEvents_PowerModeChanged;
     }
 
-    public bool? IsPluggedIn => SystemInformation.PowerStatus.PowerLineStatus switch
+    // The reader is a parameter so the filtering can be tested without Windows.
+    internal PowerSourceService(Func<bool?> readPluggedIn)
     {
-        PowerLineStatus.Online => true,
-        PowerLineStatus.Offline => false,
-        _ => null
-    };
+        _readPluggedIn = readPluggedIn;
+        _lastPluggedIn = readPluggedIn();
+    }
+
+    public bool? IsPluggedIn => _readPluggedIn();
 
     public event EventHandler? PowerSourceChanged;
 
@@ -23,10 +29,35 @@ internal sealed class PowerSourceService : IPowerSource, IDisposable
         PowerModeChangedEventArgs e)
     {
         if (e.Mode == PowerModes.StatusChange)
-        {
-            PowerSourceChanged?.Invoke(this, EventArgs.Empty);
-        }
+            OnStatusChange();
     }
+
+    /// <summary>
+    /// Windows reports a status change for every battery percentage step as well
+    /// as for plugging in and unplugging. Only the latter matters to anyone
+    /// listening, so the rest is dropped here instead of waking every listener.
+    /// </summary>
+    internal void OnStatusChange()
+    {
+        var pluggedIn = _readPluggedIn();
+
+        lock (_sync)
+        {
+            if (pluggedIn == _lastPluggedIn)
+                return;
+
+            _lastPluggedIn = pluggedIn;
+        }
+
+        PowerSourceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static bool? ReadWindowsPowerLine() => SystemInformation.PowerStatus.PowerLineStatus switch
+    {
+        PowerLineStatus.Online => true,
+        PowerLineStatus.Offline => false,
+        _ => null
+    };
 
     public void Dispose()
     {
