@@ -26,35 +26,59 @@ internal static class DgpuScanner
         var usages = DiscreteGpuReader.ReadProcessUsage(adapters.Select(adapter => adapter.Luid).ToHashSet());
 
         using var current = Process.GetCurrentProcess();
-        var apps = DgpuAppSelector.Classify(usages, DescribeRunningProcesses(), current.Id, current.SessionId);
+
+        // Only the processes on the GPU, and the parents the selector asks
+        // about, are ever inspected; each is looked at once.
+        var parents = ProcessTree.ReadParentIds();
+        var described = new Dictionary<int, RunningProcess?>();
+
+        RunningProcess? Lookup(int processId)
+        {
+            if (!described.TryGetValue(processId, out var process))
+                described[processId] = process = Describe(processId, parents);
+
+            return process;
+        }
+
+        var apps = DgpuAppSelector.Classify(usages, Lookup, current.Id, current.SessionId);
 
         return new DgpuScanResult(true, externalDisplay, apps);
     }
 
-    private static Dictionary<int, RunningProcess> DescribeRunningProcesses()
+    // Null when the process is gone or cannot be inspected; the selector then
+    // never treats it as a candidate or as an owner.
+    private static RunningProcess? Describe(int processId, IReadOnlyDictionary<int, int> parents)
     {
-        var running = new Dictionary<int, RunningProcess>();
-
-        foreach (var process in Process.GetProcesses())
+        try
         {
-            using (process)
-            {
-                try
-                {
-                    running[process.Id] = new RunningProcess(
-                        process.Id,
-                        process.ProcessName,
-                        process.SessionId,
-                        process.MainWindowHandle != IntPtr.Zero);
-                }
-                catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
-                {
-                    // Exited already, or not ours to inspect. Not describing it
-                    // means it is not in the map, so it is never a candidate.
-                }
-            }
-        }
+            using var process = Process.GetProcessById(processId);
 
-        return running;
+            return new RunningProcess(
+                processId,
+                process.ProcessName,
+                process.SessionId,
+                process.MainWindowHandle != IntPtr.Zero,
+                parents.GetValueOrDefault(processId),
+                ReadStartTime(process));
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException or NotSupportedException or System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+    }
+
+    // Protected processes refuse this; an unknown start time just means the
+    // process cannot be used as somebody's parent.
+    private static DateTime? ReadStartTime(Process process)
+    {
+        try
+        {
+            return process.StartTime;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or NotSupportedException or System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
     }
 }

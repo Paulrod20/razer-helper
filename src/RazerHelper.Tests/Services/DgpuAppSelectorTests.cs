@@ -84,12 +84,147 @@ public class DgpuAppSelectorTests
             [201] = Process(201, "big")
         };
 
-        var apps = DgpuAppSelector.Classify(usages, running, ThisPid, ThisSession);
+        var apps = Classify(usages, running);
 
         Assert.Equal(["big", "small"], apps.Select(app => app.Name));
     }
 
     [Fact]
     public void Classify_WithNothingOnTheGpu_IsEmpty() =>
-        Assert.Empty(DgpuAppSelector.Classify([], new Dictionary<int, RunningProcess>(), ThisPid, ThisSession));
+        Assert.Empty(Classify([], new Dictionary<int, RunningProcess>()));
+
+    // Helper processes: a browser's GPU process has no window, its main process does.
+
+    private static readonly DateTime Start = new(2026, 1, 1, 9, 0, 0);
+
+    private static IReadOnlyList<DgpuApp> Classify(
+        IEnumerable<GpuProcessUsage> usages,
+        params RunningProcess[] processes) =>
+        Classify(usages, processes.ToDictionary(process => process.ProcessId));
+
+    private static IReadOnlyList<DgpuApp> Classify(
+        IEnumerable<GpuProcessUsage> usages,
+        Dictionary<int, RunningProcess> running) =>
+        DgpuAppSelector.Classify(usages, pid => running.GetValueOrDefault(pid), ThisPid, ThisSession);
+
+    private static RunningProcess Helper(int pid, string name, int parent, DateTime? started, bool hasWindow = false) =>
+        new(pid, name, ThisSession, hasWindow, parent, started);
+
+    [Fact]
+    public void AHelperWithoutAWindow_IsCountedUnderItsSameNamedParentApp()
+    {
+        var apps = Classify(
+            [new GpuProcessUsage(301, 300 * 1024 * 1024)],
+            Helper(300, "msedge", parent: 1, Start, hasWindow: true),
+            Helper(301, "msedge", parent: 300, Start.AddSeconds(5)));
+
+        var app = Assert.Single(apps);
+        Assert.Equal(300, app.ProcessId);
+        Assert.Equal(DgpuAppVerdict.Close, app.Verdict);
+    }
+
+    [Fact]
+    public void AHelperTwoLevelsDown_IsStillTracedToTheApp()
+    {
+        var apps = Classify(
+            [new GpuProcessUsage(302, 1)],
+            Helper(300, "msedge", parent: 1, Start, hasWindow: true),
+            Helper(301, "msedge", parent: 300, Start.AddSeconds(1)),
+            Helper(302, "msedge", parent: 301, Start.AddSeconds(2)));
+
+        Assert.Equal(300, Assert.Single(apps).ProcessId);
+    }
+
+    [Fact]
+    public void SeveralHelpersOfOneApp_AreOneEntryWithTheirMemoryAddedUp()
+    {
+        var apps = Classify(
+            [new GpuProcessUsage(300, 10), new GpuProcessUsage(301, 200), new GpuProcessUsage(302, 5)],
+            Helper(300, "msedge", parent: 1, Start, hasWindow: true),
+            Helper(301, "msedge", parent: 300, Start.AddSeconds(1)),
+            Helper(302, "msedge", parent: 300, Start.AddSeconds(2)));
+
+        var app = Assert.Single(apps);
+        Assert.Equal(215, app.DedicatedBytes);
+    }
+
+    [Fact]
+    public void AParentThatIsADifferentProgram_IsNeverTakenForTheOwner()
+    {
+        // A script on the GPU, started from a terminal that has a window: the
+        // terminal must not be closed to stop it.
+        var apps = Classify(
+            [new GpuProcessUsage(301, 1)],
+            Helper(300, "WindowsTerminal", parent: 1, Start, hasWindow: true),
+            Helper(301, "python", parent: 300, Start.AddSeconds(5)));
+
+        var app = Assert.Single(apps);
+        Assert.Equal(301, app.ProcessId);
+        Assert.Equal(DgpuAppVerdict.NoWindow, app.Verdict);
+    }
+
+    [Fact]
+    public void AParentStartedAfterTheChild_IsAReusedId_NotAParent()
+    {
+        var apps = Classify(
+            [new GpuProcessUsage(301, 1)],
+            Helper(300, "msedge", parent: 1, Start.AddMinutes(10), hasWindow: true),
+            Helper(301, "msedge", parent: 300, Start));
+
+        Assert.Equal(DgpuAppVerdict.NoWindow, Assert.Single(apps).Verdict);
+    }
+
+    [Fact]
+    public void WithoutStartTimes_AParentIsNotTrusted()
+    {
+        var apps = Classify(
+            [new GpuProcessUsage(301, 1)],
+            Helper(300, "msedge", parent: 1, started: null, hasWindow: true),
+            Helper(301, "msedge", parent: 300, started: null));
+
+        Assert.Equal(DgpuAppVerdict.NoWindow, Assert.Single(apps).Verdict);
+    }
+
+    [Fact]
+    public void AParentThatCannotBeInspected_LeavesTheHelperAlone()
+    {
+        var apps = Classify(
+            [new GpuProcessUsage(301, 1)],
+            Helper(301, "msedge", parent: 300, Start));
+
+        Assert.Equal(DgpuAppVerdict.NoWindow, Assert.Single(apps).Verdict);
+    }
+
+    [Fact]
+    public void AProtectedHelper_IsNotMappedToAnything()
+    {
+        var apps = Classify(
+            [new GpuProcessUsage(301, 1)],
+            Helper(300, "explorer", parent: 1, Start, hasWindow: true),
+            Helper(301, "explorer", parent: 300, Start.AddSeconds(1)));
+
+        Assert.Equal(DgpuAppVerdict.Protected, Assert.Single(apps).Verdict);
+    }
+
+    [Fact]
+    public void AHelperWhoseParentChainIsALoop_StillTerminates()
+    {
+        var apps = Classify(
+            [new GpuProcessUsage(301, 1)],
+            Helper(300, "msedge", parent: 301, Start),
+            Helper(301, "msedge", parent: 300, Start));
+
+        Assert.Equal(DgpuAppVerdict.NoWindow, Assert.Single(apps).Verdict);
+    }
+
+    [Fact]
+    public void TheOwnersDetailsAreUsed_NotTheHelpers()
+    {
+        var apps = Classify(
+            [new GpuProcessUsage(301, 1)],
+            Helper(300, "msedge", parent: 1, Start, hasWindow: true),
+            Helper(301, "msedge", parent: 300, Start.AddSeconds(1)));
+
+        Assert.Equal("msedge", Assert.Single(apps).Name);
+    }
 }

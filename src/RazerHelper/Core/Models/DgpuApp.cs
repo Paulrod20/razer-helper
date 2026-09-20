@@ -25,5 +25,14 @@ internal sealed record DgpuApp(int ProcessId, string Name, long DedicatedBytes, 
 /// <summary>Video memory a process holds on the dedicated GPU, as Windows reports it.</summary>
 internal sealed record GpuProcessUsage(int ProcessId, long DedicatedBytes);
 
-/// <summary>What is known about a running process, gathered by the caller so the decision stays pure.</summary>
-internal sealed record RunningProcess(int ProcessId, string Name, int SessionId, bool HasWindow);
+/// <summary>
+/// What is known about a running process, gathered by the caller so the decision stays pure.
+/// The parent and start time let a helper process be traced back to the app that launched it.
+/// </summary>
+internal sealed record RunningProcess(
+    int ProcessId,
+    string Name,
+    int SessionId,
+    bool HasWindow,
+    int ParentProcessId = 0,
+    DateTime? StartTime = null);

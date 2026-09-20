@@ -26,32 +26,89 @@ internal static class DgpuAppSelector
     // Whole families, so a renamed or versioned helper is still covered.
     private static readonly string[] ProtectedPrefixes = ["razer", "nvidia", "amd", "radeon"];
 
+    // Real helper chains are shallow (browser main, then its GPU process).
+    // The limit only guarantees the walk ends, whatever the process table says.
+    private const int MaximumOwnerDepth = 8;
+
     /// <summary>
-    /// Classifies every process using the dedicated GPU, biggest video memory
-    /// first. A process Windows reports but that is no longer running is left out.
+    /// Classifies what is using the dedicated GPU, biggest video memory first.
+    /// A helper process with no window of its own (Edge's GPU process, say) is
+    /// counted under the app that owns it, so one app is one entry with the
+    /// video memory of all its processes added up.
     /// </summary>
+    /// <param name="lookup">
+    /// Describes a process by id, or returns null when it is gone or cannot be
+    /// inspected. Asked lazily, so only the processes that matter are looked at.
+    /// </param>
     public static IReadOnlyList<DgpuApp> Classify(
         IEnumerable<GpuProcessUsage> usages,
-        IReadOnlyDictionary<int, RunningProcess> running,
+        Func<int, RunningProcess?> lookup,
         int thisProcessId,
         int thisSessionId)
     {
-        var apps = new List<DgpuApp>();
+        var apps = new Dictionary<int, DgpuApp>();
 
         foreach (var usage in usages)
         {
-            if (!running.TryGetValue(usage.ProcessId, out var process))
+            if (lookup(usage.ProcessId) is not { } process)
                 continue;
 
-            apps.Add(new DgpuApp(
-                process.ProcessId,
-                process.Name,
-                usage.DedicatedBytes,
-                Decide(process, thisProcessId, thisSessionId)));
+            var (owner, verdict) = ResolveOwner(process, lookup, thisProcessId, thisSessionId);
+
+            apps[owner.ProcessId] = apps.TryGetValue(owner.ProcessId, out var existing)
+                ? existing with { DedicatedBytes = existing.DedicatedBytes + usage.DedicatedBytes }
+                : new DgpuApp(owner.ProcessId, owner.Name, usage.DedicatedBytes, verdict);
         }
 
-        return apps.OrderByDescending(app => app.DedicatedBytes).ToList();
+        return apps.Values.OrderByDescending(app => app.DedicatedBytes).ToList();
     }
+
+    // A process that is not closable itself may be a helper of an app that is:
+    // walk up through parents while they are the same program (a browser's
+    // GPU process and its main process share a name). A different program in
+    // between ends the search, so a script's terminal or launcher is never
+    // taken for its owner.
+    private static (RunningProcess Owner, DgpuAppVerdict Verdict) ResolveOwner(
+        RunningProcess process,
+        Func<int, RunningProcess?> lookup,
+        int thisProcessId,
+        int thisSessionId)
+    {
+        var verdict = Decide(process, thisProcessId, thisSessionId);
+
+        if (verdict != DgpuAppVerdict.NoWindow)
+            return (process, verdict);
+
+        var child = process;
+
+        for (var depth = 0; depth < MaximumOwnerDepth; depth++)
+        {
+            if (lookup(child.ParentProcessId) is not { } parent ||
+                !string.Equals(parent.Name, process.Name, StringComparison.OrdinalIgnoreCase) ||
+                !StartedBefore(parent, child))
+            {
+                break;
+            }
+
+            var parentVerdict = Decide(parent, thisProcessId, thisSessionId);
+
+            if (parentVerdict == DgpuAppVerdict.Close)
+                return (parent, DgpuAppVerdict.Close);
+
+            if (parentVerdict != DgpuAppVerdict.NoWindow)
+                break;
+
+            child = parent;
+        }
+
+        return (process, DgpuAppVerdict.NoWindow);
+    }
+
+    // Process ids get reused, so a "parent" id may now be an unrelated program.
+    // A real parent started first; without both start times there is no way to
+    // know, so it is not trusted.
+    private static bool StartedBefore(RunningProcess parent, RunningProcess child) =>
+        parent.StartTime is { } parentStart && child.StartTime is { } childStart && parentStart <= childStart;
 
     internal static DgpuAppVerdict Decide(RunningProcess process, int thisProcessId, int thisSessionId)
     {
