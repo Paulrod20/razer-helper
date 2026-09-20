@@ -1,4 +1,8 @@
-# razer-helper
+<p align="center">
+  <img src="src/RazerHelper/Assets/logo.png" width="128" alt="RazerHelper logo: a green disc with a black R">
+</p>
+
+<h1 align="center">RazerHelper</h1>
 
 A lightweight, open-source replacement for Razer Synapse on Razer Blade laptops.
 
@@ -16,9 +20,21 @@ It lives in the system tray, talks to the laptop's controller directly, and need
 - **Fans:** live CPU and GPU fan speed, and **Max** fan speed (both fans flat out). Max is a one-off that needs Custom mode and AC power; **Auto** turns it off, and it clears by itself when you leave Custom.
 - **Lighting:** the keyboard backlight (Off, Static green, Spectrum, Wave, Breathing) and the Razer logo on the lid (Off, On, Breathing), each with a brightness slider. Always available, on battery or plugged in.
 - **Razer background services:** shows how many are running, and can stop and restore them (see below).
-- **Settings** (link at the bottom right): start at login, switch profile automatically when you plug in or unplug, hide the window when you click away, close apps using the dedicated GPU when you unplug (see below), shortcuts to Razer's drivers and support page and to the log folder, and **Reset to defaults**.
+- **Settings** (link at the bottom right): start at login, switch profile automatically when you plug in or unplug, hide the window when you click away, keep it always on top, close apps using the dedicated GPU when you unplug (see below), shortcuts to Razer's drivers and support page and to the log folder, and **Reset to defaults**.
 
 **Reset to defaults** (in Settings) puts the app back the way it was the first time you opened it, if something ever seems stuck. After you confirm, it clears your saved settings, turns off Start at login, sets the laptop to Balanced mode with no battery charge limit, and restarts. It does not touch Razer's background services (the record of what they were set to is kept, so Start can still restore them) or anything else on your PC.
+
+## Open it from anywhere
+
+Press **Fn+Del** in any program, even a game, to bring the window to the front, and press it again to hide it. On the Blade, Fn+Del sends the Insert key, so that is what the app listens for; it is always on and needs no setting.
+
+- It costs nothing when unused: Windows hands the key press to the app, so nothing watches the keyboard.
+- While RazerHelper runs, Insert no longer toggles overwrite mode in editors. If another program already uses the key, the window says so at the top.
+- **Always on top** (in Settings) keeps the window above other windows, including games in a borderless window. A game in true exclusive fullscreen can still cover it, and opening the window may make such a game minimize, because the window takes focus. That is how Windows treats exclusive fullscreen; borderless and windowed games are not affected.
+
+## Light on resources
+
+It sits in the tray and does nothing until you open it. Its only timer, which reads fan speeds and temperatures, runs only while the window is open and stops when it is hidden, so the laptop is not polled while the window is closed. It only acts on events, such as plugging in or unplugging. Results are reused so the laptop's controller is not asked twice for the same thing. On the developer's machine it idles at roughly 15 MB of private memory. It uses one small dependency (for Windows services) and installs no driver.
 
 ## Not yet
 
@@ -90,7 +106,7 @@ Before you do:
 
 ## How it works
 
-The app sends commands to the laptop's embedded controller over a standard Windows HID interface. The command set was worked out by the community; see the credits below. Writes are checked: the controller echoes what it accepted, and the app treats anything else as a failure.
+The app sends commands to the laptop's embedded controller over a standard Windows HID interface, found and opened with Windows' own device APIs (no third-party HID library). The command set was worked out by the community; see the credits below. Writes are checked: the controller echoes what it accepted, and the app treats anything else as a failure.
 
 ## Credits
 
@@ -103,6 +119,10 @@ The app sends commands to the laptop's embedded controller over a standard Windo
 This app changes how your laptop behaves: it writes to the laptop's embedded controller, and it can stop and disable Windows services. It only sends commands that were verified on a Blade 16 (2023), but **you use it at your own risk.**
 
 This software is provided "as is", without warranty of any kind. **The author is not responsible for anything that breaks, stops working, or is lost as a result of using it**, including damage to your laptop, changes to performance, battery or thermal behavior, problems with Razer software or Razer devices, or data loss. This is the same no-warranty and no-liability position the [MIT license](LICENSE) already sets out; this section is a plain-language reminder of it. If that isn't acceptable to you, please don't use the app.
+
+## Trademarks
+
+Razer, the Razer logo, Razer Synapse and Blade are trademarks of Razer Inc. They are used here only to say which laptops and software this project works with. RazerHelper is an independent project; it is not made, endorsed or supported by Razer, and its icon is not Razer's.
 
 ## License
 

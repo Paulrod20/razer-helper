@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Reflection;
 
 namespace RazerHelper.Helpers;
 
@@ -57,6 +56,8 @@ internal static class ElevatedRunner
         if (!string.Equals(Path.GetFileNameWithoutExtension(processPath), "dotnet", StringComparison.OrdinalIgnoreCase))
             return (processPath, string.Empty);
 
-        return (processPath, $"\"{Assembly.GetEntryAssembly()!.Location}\" ");
+        // The first command-line argument is the dll that dotnet was asked to run.
+        // (Assembly.Location would do here too, but it is empty in a single-file build.)
+        return (processPath, $"\"{Path.GetFullPath(Environment.GetCommandLineArgs()[0])}\" ");
     }
 }

@@ -7,6 +7,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Version>1.0.0</Version>
+    <!-- Run on a newer .NET too if 10 is not installed (the installer accepts 10 or newer). -->
+    <RollForward>LatestMajor</RollForward>
 
     <!-- A tray app that mostly sleeps never benefits from profile-guided re-optimization;
          measured, turning it off saves about 4 MB of memory once the popup has been used. -->
