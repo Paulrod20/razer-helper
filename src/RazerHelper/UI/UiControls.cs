@@ -4,14 +4,6 @@ namespace RazerHelper.UI;
 
 internal static class UiControls
 {
-    public static Panel CreateSectionPanel() => new()
-    {
-        BackColor = BackgroundColor,
-        Dock = DockStyle.Fill,
-        Margin = new Padding(0, 0, 0, 8),
-        Padding = Padding.Empty
-    };
-
     public static TableLayoutPanel CreateTwoColumnLayout(float leftWidth, float rightWidth)
     {
         var layout = new TableLayoutPanel

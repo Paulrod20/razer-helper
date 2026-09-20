@@ -3,10 +3,10 @@ namespace RazerHelper.Core.Hardware;
 /// <summary>Finds other Razer hardware (mice, keyboards, headsets) plugged in alongside the laptop.</summary>
 internal static class RazerPeripheralScanner
 {
-    private const int RazerVendorId = 0x1532;
+    private const int RazerVendorId = RazerHidTransport.RazerVendorId;
 
     // The laptop's own control device, which is not a peripheral.
-    private const int LaptopProductId = 0x029F;
+    private const int LaptopProductId = RazerHidTransport.Blade16_2023ProductId;
 
     /// <summary>The product names of connected Razer devices other than the laptop itself.</summary>
     public static IReadOnlyList<string> FindConnectedNames()

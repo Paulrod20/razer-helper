@@ -6,8 +6,9 @@ namespace RazerHelper.Core.Hardware;
 
 internal sealed class RazerHidTransport : IRazerTransport, IDisposable
 {
-    private const int RazerVendorId = 0x1532;
-    private const int Blade16_2023ProductId = 0x029F;
+    // Also used by the peripheral scanner to tell the laptop apart from other Razer devices.
+    internal const int RazerVendorId = 0x1532;
+    internal const int Blade16_2023ProductId = 0x029F;
     private const ushort GetDeviceModeCommand = 0x0084;
     private const int MaximumAttempts = 5;
     private const int ConnectionProbeAttempts = 3;
