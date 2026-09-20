@@ -59,6 +59,7 @@ public sealed class TrayPopupForm : Form
     private readonly SynchronizationContext _uiContext;
     private readonly Label _headerStatusLabel = CreateHeaderStatusLabel();
     private readonly ToolTip _toolTip = new();
+    private readonly GlobalHotkey _hotkey = new();
     private TableLayoutPanel _content = null!;
     private AppSettings _settings;
 
@@ -190,7 +191,59 @@ public sealed class TrayPopupForm : Form
         _ = _servicesSection.RefreshAsync();
 
         Deactivate += (_, _) => BeginInvoke(HideWhenInactive);
+
+        TopMost = _settings.AlwaysOnTop;
+        _hotkey.Pressed += (_, _) => ToggleFromShortcut();
+        StartShortcut();
     }
+
+    /// <summary>
+    /// The shortcut was pressed, possibly while a game has the screen. Brings
+    /// the popup to the front and focuses it, or hides it if it already has focus.
+    /// </summary>
+    public void ToggleFromShortcut()
+    {
+        // A dialog (Settings) is open on top of the popup: leave it alone.
+        if (_modalDepth > 0)
+            return;
+
+        if (Visible && ContainsFocus)
+        {
+            Hide();
+            return;
+        }
+
+        // Above everything for this showing even when "Always on top" is off; it
+        // drops back to the setting when the popup is hidden.
+        TopMost = true;
+
+        if (!Visible)
+        {
+            Location = TaskbarPlacement.GetPopupLocation(Size);
+            Show();
+        }
+
+        Activate();
+        SetForegroundWindow(Handle);
+    }
+
+    // The shortcut is always on. If another program already owns the key, say so
+    // in the header instead of failing silently.
+    private void StartShortcut()
+    {
+        if (_hotkey.TryRegister())
+        {
+            AppLog.Info($"Shortcut {GlobalHotkey.Text} is on.");
+            return;
+        }
+
+        AppLog.Error($"Shortcut {GlobalHotkey.Text} could not be registered; another program uses it.");
+        ShowStatus(new SectionStatus($"{GlobalHotkey.Text} shortcut is used by another program.", IsError: true));
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr window);
 
     public void CloseForApplicationExit()
     {
@@ -360,6 +413,12 @@ public sealed class TrayPopupForm : Form
         settingsForm.HideWhenClickedAwayChanged += (_, enabled) =>
             SaveSettings(_settings with { HideWhenClickedAway = enabled });
 
+        settingsForm.AlwaysOnTopChanged += (_, enabled) =>
+        {
+            SaveSettings(_settings with { AlwaysOnTop = enabled });
+            TopMost = enabled;
+        };
+
         settingsForm.CloseGpuAppsOnUnplugChanged += (_, enabled) =>
         {
             SaveSettings(_settings with { CloseGpuAppsOnUnplug = enabled });
@@ -400,6 +459,7 @@ public sealed class TrayPopupForm : Form
             // file, so the next change does not write the old settings back.
             _settings = FactoryReset.DefaultsKeepingServiceRecord(_settings);
             _isResetting = false;
+            TopMost = _settings.AlwaysOnTop;
 
             MessageBox.Show(
                 this,
@@ -533,10 +593,20 @@ public sealed class TrayPopupForm : Form
     private void Section_StatusChanged(object? sender, SectionStatus status) =>
         ShowStatus(status);
 
+    // "Clicked away" only means something once the popup has had focus to lose.
+    // Windows sometimes declines to give focus to a window opened by a shortcut
+    // while another program (a game) has the screen; without this the popup would
+    // open and hide itself again at once.
     private void HideWhenInactive()
     {
-        if (!_allowClose && _settings.HideWhenClickedAway && _modalDepth == 0 && Visible && !ContainsFocus)
+        if (!_allowClose && _settings.HideWhenClickedAway && _hasBeenActive && _modalDepth == 0 && Visible && !ContainsFocus)
             Hide();
+    }
+
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        _hasBeenActive = true;
     }
 
     // A borderless window has no shadow of its own; ask for the standard one
@@ -568,6 +638,7 @@ public sealed class TrayPopupForm : Form
         if (disposing)
         {
             _toolTip.Dispose();
+            _hotkey.Dispose();
             _dgpuCoordinator.Dispose();
 
             // Only what the form created itself; supplied dependencies belong to the caller.
@@ -596,6 +667,7 @@ public sealed class TrayPopupForm : Form
     // again. The host asks this to tell that click apart from a real request.
     private const int JustHiddenMilliseconds = 300;
     private long _hiddenAtTicks = long.MinValue;
+    private bool _hasBeenActive;
 
     /// <summary>True when the popup was hidden a moment ago, so a tray click now is the one that closed it.</summary>
     public bool WasJustHidden =>
@@ -605,8 +677,16 @@ public sealed class TrayPopupForm : Form
     {
         base.OnVisibleChanged(e);
 
+        // Each showing starts without focus, until Windows gives it.
+        _hasBeenActive = false;
+
         if (!Visible)
+        {
             _hiddenAtTicks = Environment.TickCount64;
+
+            // A showing by shortcut may have raised it above everything; back to the setting.
+            TopMost = _settings.AlwaysOnTop;
+        }
 
         if (Visible)
         {

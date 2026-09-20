@@ -39,6 +39,7 @@ public sealed class FactoryResetTests : IDisposable
         AutoSwitchProfiles: false,
         HideWhenClickedAway: false,
         CloseGpuAppsOnUnplug: true,
+        AlwaysOnTop: true,
         NeverCloseApps: ["blender"],
         RazerLoginApprovals: new Dictionary<string, string> { ["RazerAppEngine"] = "01000000 30EF1369D343DD01".Replace(" ", "") });
 
@@ -71,6 +72,7 @@ public sealed class FactoryResetTests : IDisposable
         Assert.True(loaded.AutoSwitchProfiles);
         Assert.True(loaded.HideWhenClickedAway);
         Assert.False(loaded.CloseGpuAppsOnUnplug);
+        Assert.False(loaded.AlwaysOnTop);
         Assert.Null(loaded.NeverCloseApps);
     }
 

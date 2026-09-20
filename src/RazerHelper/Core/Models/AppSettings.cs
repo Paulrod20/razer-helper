@@ -27,4 +27,7 @@ internal sealed record AppSettings(
     // What Task Manager's startup switch was for each Razer login entry before
     // "Stop" turned it off (as stored text; empty means it had none), so "Start"
     // can put back exactly that.
-    Dictionary<string, string>? RazerLoginApprovals = null);
+    Dictionary<string, string>? RazerLoginApprovals = null,
+    // Off unless the user turns it on: the window stays above other windows
+    // (borderless-window games included).
+    bool AlwaysOnTop = false);

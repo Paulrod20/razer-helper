@@ -20,6 +20,7 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _startAtLoginBox;
     private readonly CheckBox _autoSwitchBox;
     private readonly CheckBox _hideWhenClickedAwayBox;
+    private readonly CheckBox _alwaysOnTopBox;
     private readonly CheckBox _closeGpuAppsBox;
     private readonly Label _errorLabel;
 
@@ -63,6 +64,7 @@ internal sealed class SettingsForm : Form
         _startAtLoginBox = AddOption(layout, "Start at login", "Open RazerHelper in the tray when you sign in to Windows.");
         _autoSwitchBox = AddOption(layout, "Switch profile when plugging in or unplugging", "Off keeps whatever mode you are in.");
         _hideWhenClickedAwayBox = AddOption(layout, "Hide when clicking away", "Off keeps the window open until you click the tray icon.");
+        _alwaysOnTopBox = AddOption(layout, "Always on top", $"Keeps the window above other windows, including games running in a borderless window. Press {GlobalHotkey.Text} in any program, even a game, to bring this window to the front (again to hide it).");
         _closeGpuAppsBox = AddOption(layout, "Close apps using the dedicated GPU when unplugged", "Saves battery. Asks first, and does nothing while an external display is connected. Use Free up GPU in the footer any time.");
 
         _errorLabel = new Label
@@ -93,12 +95,14 @@ internal sealed class SettingsForm : Form
 
         _autoSwitchBox.Checked = settings.AutoSwitchProfiles;
         _hideWhenClickedAwayBox.Checked = settings.HideWhenClickedAway;
+        _alwaysOnTopBox.Checked = settings.AlwaysOnTop;
         _closeGpuAppsBox.Checked = settings.CloseGpuAppsOnUnplug;
         _startAtLoginBox.Checked = ReadStartAtLogin();
 
         _startAtLoginBox.CheckedChanged += StartAtLoginBox_CheckedChanged;
         _autoSwitchBox.CheckedChanged += (_, _) => AutoSwitchProfilesChanged?.Invoke(this, _autoSwitchBox.Checked);
         _hideWhenClickedAwayBox.CheckedChanged += (_, _) => HideWhenClickedAwayChanged?.Invoke(this, _hideWhenClickedAwayBox.Checked);
+        _alwaysOnTopBox.CheckedChanged += (_, _) => AlwaysOnTopChanged?.Invoke(this, _alwaysOnTopBox.Checked);
         _closeGpuAppsBox.CheckedChanged += (_, _) => CloseGpuAppsOnUnplugChanged?.Invoke(this, _closeGpuAppsBox.Checked);
 
         _isLoading = false;
@@ -109,6 +113,8 @@ internal sealed class SettingsForm : Form
     public event EventHandler<bool>? HideWhenClickedAwayChanged;
 
     public event EventHandler<bool>? CloseGpuAppsOnUnplugChanged;
+
+    public event EventHandler<bool>? AlwaysOnTopChanged;
 
     /// <summary>True when the user confirmed a reset; the window then closes and the caller carries it out.</summary>
     public bool ResetConfirmed { get; private set; }
