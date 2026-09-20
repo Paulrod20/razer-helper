@@ -12,11 +12,24 @@ namespace RazerHelper.UI.Forms;
 
 public sealed class TrayPopupForm : Form
 {
-    // Row positions in the popup's grid. The footer is always last and the
-    // Razer services row sits just above it: anything new goes above both.
-    private const int PerformanceRow = 1;
-    private const int ServicesRow = 5;
-    private const int FooterRow = 6;
+    // The popup's rows, top to bottom. They are added in this order (see AddRow).
+    // The footer is always last and the Razer services row sits just above it:
+    // anything new goes above both.
+    private enum Row
+    {
+        Header,
+        Performance,
+        Fans,
+        Display,
+        Battery,
+        Lighting,
+        Services,
+        Footer
+    }
+
+    private const int HeaderRowHeight = 34;
+    private const int DisplayRowHeight = 74;
+    private const int BatteryRowHeight = 104;
     private const int FooterRowHeight = 24;
 
     private const int PerformanceBaseRowHeight = 124;
@@ -36,6 +49,7 @@ public sealed class TrayPopupForm : Form
     private readonly IStartupRegistration _startupRegistration;
     private readonly bool _ownsDependencies;
     private readonly BatterySection _batterySection;
+    private readonly LightingSection _lightingSection;
     private readonly DisplaySection _displaySection;
     private readonly FanSection _fanSection;
     private readonly PerformanceSection _performanceSection;
@@ -112,6 +126,9 @@ public sealed class TrayPopupForm : Form
         _batterySection.ChargeLimitApplied += BatterySection_ChargeLimitApplied;
         _batterySection.StatusChanged += Section_StatusChanged;
 
+        _lightingSection = new LightingSection(new LightingService(_transport));
+        _lightingSection.StatusChanged += Section_StatusChanged;
+
         _servicesSection = new ServicesSection(
             new RazerServiceManager(serviceControl),
             _settings.RazerServiceStartModes);
@@ -182,31 +199,26 @@ public sealed class TrayPopupForm : Form
             Dock = DockStyle.Fill,
             Margin = Padding.Empty,
             Padding = new Padding(16, 12, 16, 12),
-            RowCount = 7
+            RowCount = Enum.GetValues<Row>().Length
         };
 
         // Every row is a fixed height, so the popup's height is their sum.
         // The Performance and Razer services rows change height; see
         // ResizeToFitRows.
         _content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F)); // Header
-        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, PerformanceBaseRowHeight)); // Performance
-        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, FanRowHeight)); // Fan
-        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 74F)); // Display
-        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F)); // Battery
-        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, 0F)); // Razer services
-        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, FooterRowHeight)); // Footer (bottom)
 
-        _content.Controls.Add(CreateAppHeader(), 0, 0);
-        _content.Controls.Add(_performanceSection, 0, PerformanceRow);
-        _content.Controls.Add(_fanSection, 0, 2);
-        _content.Controls.Add(_displaySection, 0, 3);
-        _content.Controls.Add(_batterySection, 0, 4);
-        _content.Controls.Add(_servicesSection, 0, ServicesRow);
         var footer = new AppFooter();
         footer.FreeUpGpuRequested += async (_, _) => await FreeUpGpuAsync();
         footer.SettingsRequested += (_, _) => ShowSettings();
-        _content.Controls.Add(footer, 0, FooterRow);
+
+        AddRow(Row.Header, CreateAppHeader(), HeaderRowHeight);
+        AddRow(Row.Performance, _performanceSection, PerformanceBaseRowHeight);
+        AddRow(Row.Fans, _fanSection, FanRowHeight);
+        AddRow(Row.Display, _displaySection, DisplayRowHeight);
+        AddRow(Row.Battery, _batterySection, BatteryRowHeight);
+        AddRow(Row.Lighting, _lightingSection, LightingSection.RowHeight);
+        AddRow(Row.Services, _servicesSection, 0); // Grows when Razer's software is installed.
+        AddRow(Row.Footer, footer, FooterRowHeight);
 
         Controls.Add(_content);
 
@@ -214,15 +226,27 @@ public sealed class TrayPopupForm : Form
         ResizeToFitRows();
     }
 
+    // Adds a row's height and its content together, so the two can never get out
+    // of step. Rows must be added in the order of the Row enum.
+    private void AddRow(Row row, Control content, float height)
+    {
+        System.Diagnostics.Debug.Assert((int)row == _content.RowStyles.Count, "Rows must be added in order.");
+
+        _content.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+        _content.Controls.Add(content, 0, (int)row);
+    }
+
+    private RowStyle RowStyleOf(Row row) => _content.RowStyles[(int)row];
+
     // Two rows change height: Performance gains the Custom boost row, and the
     // Razer services row only exists when Razer's software is installed. Grow
     // or shrink the popup to match, then re-anchor it to the taskbar so it
     // does not end up floating or overlapping it.
     private void ResizeToFitRows()
     {
-        _content.RowStyles[PerformanceRow].Height = PerformanceBaseRowHeight +
+        RowStyleOf(Row.Performance).Height = PerformanceBaseRowHeight +
             (_customRowShown ? CustomBoostRow.RowHeight : 0);
-        _content.RowStyles[ServicesRow].Height = _servicesRowShown ? ServicesSection.RowHeight : 0;
+        RowStyleOf(Row.Services).Height = _servicesRowShown ? ServicesSection.RowHeight : 0;
 
         var contentHeight = _content.Padding.Vertical +
             _content.RowStyles.Cast<RowStyle>().Sum(row => row.Height);
@@ -551,6 +575,9 @@ public sealed class TrayPopupForm : Form
 
             // Fn+P changes the mode without telling us; show what the EC has.
             _ = _performanceSection.RefreshAsync();
+
+            // Lighting can be changed with the Fn keys or by other software.
+            _ = _lightingSection.RefreshAsync();
 
             // Razer's services can be started or stopped from outside the app.
             _ = _servicesSection.RefreshAsync();

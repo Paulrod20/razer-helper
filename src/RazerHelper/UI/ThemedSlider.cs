@@ -18,7 +18,6 @@ internal sealed class ThemedSlider : Control
 {
     private const int ThumbRadius = 9;
     private const int TrackHeight = 4;
-    private const int TrackY = 16;
     private const int LabelTop = 32;
 
     private static readonly Color TrackColor = Color.FromArgb(70, 70, 70);
@@ -28,12 +27,14 @@ internal sealed class ThemedSlider : Control
     private readonly int _minimum;
     private readonly int _maximum;
     private readonly int _step;
+    private readonly bool _showLabels;
 
     private int _value;
     private bool _dragging;
     private bool _keyMovedValue;
 
-    public ThemedSlider(int minimum, int maximum, int step)
+    /// <param name="showLabels">Labels every step under the track (the default). Off gives a slim slider for tight rows.</param>
+    public ThemedSlider(int minimum, int maximum, int step, bool showLabels = true)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(minimum, maximum);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(step, 0);
@@ -41,6 +42,7 @@ internal sealed class ThemedSlider : Control
         _minimum = minimum;
         _maximum = maximum;
         _step = step;
+        _showLabels = showLabels;
         _value = minimum;
 
         SetStyle(
@@ -53,7 +55,7 @@ internal sealed class ThemedSlider : Control
             true);
         TabStop = true;
         BackColor = BackgroundColor;
-        Height = 50;
+        Height = showLabels ? 50 : 24;
     }
 
     public event EventHandler? ValueChanged;
@@ -187,9 +189,10 @@ internal sealed class ThemedSlider : Control
         }
 
         // One label per step, the selected one brighter.
-        using (var labelBrush = new SolidBrush(textColor))
-        using (var selectedBrush = new SolidBrush(Enabled ? Color.White : DisabledColor))
+        if (_showLabels)
         {
+            using var labelBrush = new SolidBrush(textColor);
+            using var selectedBrush = new SolidBrush(Enabled ? Color.White : DisabledColor);
             var format = new StringFormat { Alignment = StringAlignment.Center };
 
             for (var step = _minimum; step <= _maximum; step += _step)
@@ -216,6 +219,9 @@ internal sealed class ThemedSlider : Control
                 graphics.DrawEllipse(ringPen, thumb);
         }
     }
+
+    // With labels the track sits near the top; without them it is centered.
+    private int TrackY => _showLabels ? 16 : Height / 2;
 
     private int TrackWidth => Math.Max(1, Width - ThumbRadius * 2 - 1);
 

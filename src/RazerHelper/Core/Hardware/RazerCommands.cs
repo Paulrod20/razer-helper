@@ -24,4 +24,17 @@ internal static class RazerCommands
 
     // Class 0x07: battery.
     public const ushort SetBatteryChargeLimit = 0x0712;
+
+    // Class 0x03: lighting. Brightness is shared by the keyboard (LED 5) and
+    // the logo (LED 4); the logo also has a power and a mode register.
+    public const ushort SetLogoPower = 0x0300;
+    public const ushort GetLogoPower = 0x0380;
+    public const ushort SetLogoMode = 0x0302;
+    public const ushort GetLogoMode = 0x0382;
+    public const ushort SetBrightness = 0x0303;
+    public const ushort GetBrightness = 0x0383;
+
+    // Class 0x0F: keyboard backlight effect (extended matrix effect).
+    public const ushort SetKeyboardEffect = 0x0F02;
+    public const ushort GetKeyboardEffect = 0x0F82;
 }

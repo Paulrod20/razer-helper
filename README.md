@@ -13,6 +13,7 @@ It lives in the system tray, talks to the laptop's controller directly, and need
 - **Battery charge limit:** 60%, 80% or 100% (no limit).
 - **Display refresh rate:** 60 Hz, 120 Hz, or Auto, which follows the power source.
 - **Fans:** live CPU and GPU fan speed, and **Max** fan speed (both fans flat out). Max is a one-off that needs Custom mode and AC power; **Auto** turns it off, and it clears by itself when you leave Custom.
+- **Lighting:** the keyboard backlight (Off, Spectrum, Wave, Breathing) and the Razer logo on the lid (Off, On, Breathing), each with a brightness slider. Always available, on battery or plugged in.
 - **Razer background services:** shows how many are running, and can stop and restore them (see below).
 - **Settings** (link at the bottom right): start at login, switch profile automatically when you plug in or unplug, hide the window when you click away, close apps using the dedicated GPU when you unplug (see below), shortcuts to Razer's drivers and support page and to the log folder, and **Reset to defaults**.
 
@@ -20,7 +21,9 @@ It lives in the system tray, talks to the laptop's controller directly, and need
 
 ## Not yet
 
-Manual fan control, keyboard and logo lighting, the CPU overclock toggle, other Blade models, and Razer mice, keyboards and headsets.
+Manual fan control, the CPU overclock toggle, other Blade models, and Razer mice, keyboards and headsets.
+
+**Solid keyboard colors and per-key lighting are not available.** On the Blade 16 the laptop only honors a chosen color in a "driver mode" that also switches off the Fn media keys (volume, screen and keyboard brightness), and razer-helper does not trade those away. The built-in effects above are the ones the laptop runs by itself.
 
 ## Closing apps that use the dedicated GPU
 

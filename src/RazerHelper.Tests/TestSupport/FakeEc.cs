@@ -21,6 +21,18 @@ internal sealed class FakeEc : IRazerTransport
     public readonly byte[] FanRpmHundreds = [0, 0];
     public byte BatteryLimitByte = 0x50;
 
+    // Lighting, in the units the real laptop uses.
+    /// <summary>Keyboard effect id: 0 off, 2 breathing, 3 spectrum, 4 wave (1 static, 5 reactive and 7 starlight exist too).</summary>
+    public byte KeyboardEffectId = 3;
+    public byte KeyboardWaveDirection;
+    public byte KeyboardBrightness = 255;
+    public bool LogoOn;
+    public byte LogoModeByte; // 0 steady, 2 breathing.
+    public byte LogoBrightness = 255;
+
+    /// <summary>When true a keyboard effect write is acknowledged but the laptop keeps showing what it had.</summary>
+    public bool IgnoreKeyboardEffectWrites;
+
     /// <summary>The EC's max fan speed flag. Like the real one it only exists in Custom mode.</summary>
     public bool MaxFan;
 
@@ -55,6 +67,14 @@ internal sealed class FakeEc : IRazerTransport
             RazerCommands.SetMaxFan => SetMaxFan(args),
             RazerCommands.GetActualFanRpm => Respond(0x00, args[1], FanRpmHundreds[args[1] - 1]),
             RazerCommands.SetBatteryChargeLimit => SetBattery(args),
+            RazerCommands.SetKeyboardEffect => SetKeyboardEffect(args),
+            RazerCommands.GetKeyboardEffect => Respond(args[0], args[1], KeyboardEffectId, KeyboardWaveDirection),
+            RazerCommands.SetBrightness => SetBrightness(args),
+            RazerCommands.GetBrightness => Respond(args[0], args[1], args[1] == 5 ? KeyboardBrightness : LogoBrightness),
+            RazerCommands.SetLogoPower => SetLogoPower(args),
+            RazerCommands.GetLogoPower => Respond(args[0], args[1], (byte)(LogoOn ? 1 : 0)),
+            RazerCommands.SetLogoMode => SetLogoMode(args),
+            RazerCommands.GetLogoMode => Respond(args[0], args[1], LogoModeByte),
             _ => throw new NotSupportedException($"FakeEc does not know command 0x{command:X4}.")
         };
     }
@@ -104,6 +124,43 @@ internal sealed class FakeEc : IRazerTransport
         else
             GpuBoost = args[2];
 
+        return Echo(args);
+    }
+
+    private byte[] SetKeyboardEffect(byte[] args)
+    {
+        // args: [store, led, effect, (direction for wave)]. Like the real one it replies with the same bytes.
+        if (!IgnoreKeyboardEffectWrites)
+        {
+            KeyboardEffectId = args[2];
+
+            if (args.Length > 3)
+                KeyboardWaveDirection = args[3];
+        }
+
+        return Echo(args);
+    }
+
+    private byte[] SetBrightness(byte[] args)
+    {
+        // args: [1, led, brightness]; LED 5 is the keyboard, 4 the logo.
+        if (args[1] == 5)
+            KeyboardBrightness = args[2];
+        else
+            LogoBrightness = args[2];
+
+        return Echo(args);
+    }
+
+    private byte[] SetLogoPower(byte[] args)
+    {
+        LogoOn = args[2] != 0;
+        return Echo(args);
+    }
+
+    private byte[] SetLogoMode(byte[] args)
+    {
+        LogoModeByte = args[2];
         return Echo(args);
     }
 
