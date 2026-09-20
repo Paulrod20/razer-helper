@@ -208,10 +208,14 @@ public sealed class TrayPopupForm : Form
     {
         // A dialog (Settings) is open on top of the popup: leave it alone.
         if (_modalDepth > 0)
+        {
+            AppLog.Info($"{GlobalHotkey.Text} pressed while a dialog is open; ignored.");
             return;
+        }
 
         if (Visible && ContainsFocus)
         {
+            AppLog.Info($"{GlobalHotkey.Text} pressed: hiding the window.");
             Hide();
             return;
         }
@@ -227,7 +231,11 @@ public sealed class TrayPopupForm : Form
         }
 
         Activate();
-        SetForegroundWindow(Handle);
+        var gotFocus = SetForegroundWindow(Handle);
+
+        // What happened, so a game that will not show the window can be told apart
+        // from a shortcut that never arrived.
+        AppLog.Info($"{GlobalHotkey.Text} pressed: showing the window (on top: {TopMost}, focus granted: {gotFocus}).");
     }
 
     // The shortcut is always on. If another program already owns the key, say so
@@ -608,7 +616,10 @@ public sealed class TrayPopupForm : Form
     private void HideWhenInactive()
     {
         if (!_allowClose && _settings.HideWhenClickedAway && _hasBeenActive && _modalDepth == 0 && Visible && !ContainsFocus)
+        {
+            AppLog.Info("The window lost focus and hid itself (Hide when clicking away is on).");
             Hide();
+        }
     }
 
     protected override void OnActivated(EventArgs e)
