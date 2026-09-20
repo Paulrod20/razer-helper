@@ -591,9 +591,22 @@ public sealed class TrayPopupForm : Form
         base.OnFormClosing(e);
     }
 
+    // Clicking the tray icon to close the popup first takes focus from it, which
+    // hides it; the click itself then arrives a moment later and would open it
+    // again. The host asks this to tell that click apart from a real request.
+    private const int JustHiddenMilliseconds = 300;
+    private long _hiddenAtTicks = long.MinValue;
+
+    /// <summary>True when the popup was hidden a moment ago, so a tray click now is the one that closed it.</summary>
+    public bool WasJustHidden =>
+        _hiddenAtTicks != long.MinValue && Environment.TickCount64 - _hiddenAtTicks < JustHiddenMilliseconds;
+
     protected override void OnVisibleChanged(EventArgs e)
     {
         base.OnVisibleChanged(e);
+
+        if (!Visible)
+            _hiddenAtTicks = Environment.TickCount64;
 
         if (Visible)
         {

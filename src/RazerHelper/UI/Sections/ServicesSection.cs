@@ -33,6 +33,8 @@ internal sealed class ServicesSection : SectionPanel
     private RazerSoftwareStatus? _status;
     private bool _busy;
     private bool _hasServices;
+    private bool _refreshing;
+    private bool _refreshAgain;
     private DateTime _lastHoverRefresh = DateTime.MinValue;
 
     public ServicesSection(
@@ -125,14 +127,42 @@ internal sealed class ServicesSection : SectionPanel
     /// </summary>
     public event EventHandler<bool>? ModalStateChanged;
 
-    public bool HasServices => _hasServices;
-
-    /// <summary>Reads how much of Razer's software is running now.</summary>
+    /// <summary>
+    /// Reads how much of Razer's software is running now. Only one read runs at
+    /// a time. A request that arrives during one is not lost: it makes that
+    /// read go around once more, so the result is never older than the request.
+    /// </summary>
     public async Task RefreshAsync()
     {
+        // Every caller is on the UI thread, so plain flags are enough.
         if (_busy)
             return;
 
+        if (_refreshing)
+        {
+            _refreshAgain = true;
+            return;
+        }
+
+        _refreshing = true;
+
+        try
+        {
+            do
+            {
+                _refreshAgain = false;
+                await ReadOnceAsync();
+            }
+            while (_refreshAgain);
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    private async Task ReadOnceAsync()
+    {
         RazerSoftwareStatus? status = null;
 
         try

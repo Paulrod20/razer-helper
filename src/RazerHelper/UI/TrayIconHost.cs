@@ -51,6 +51,10 @@ public sealed class TrayIconHost : IDisposable
             return;
         }
 
+        // The click that just closed it by taking its focus is not a request to open it again.
+        if (_popup.WasJustHidden)
+            return;
+
         _popup.Location = TaskbarPlacement.GetPopupLocation(_popup.Size);
         _popup.Show();
         _popup.Activate();
