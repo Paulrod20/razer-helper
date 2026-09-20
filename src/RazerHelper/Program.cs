@@ -43,6 +43,9 @@ namespace RazerHelper
 
             ApplicationConfiguration.Initialize();
 
+            // The window size has to be known before any window (or font) is made.
+            UiTheme.SetScale(UiScale.Resolve(new SettingsService().Load().WindowScale, UiTheme.WindowsScale));
+
             using var trayPopup = new TrayPopupForm();
             using var trayHost = new TrayIconHost(trayPopup);
 

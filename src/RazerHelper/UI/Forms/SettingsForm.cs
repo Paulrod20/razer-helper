@@ -13,8 +13,8 @@ namespace RazerHelper.UI.Forms;
 /// </summary>
 internal sealed class SettingsForm : Form
 {
-    private const int ContentWidth = 340;
-    private const int HintIndent = 22;
+    private static int ContentWidth => S(340);
+    private static int HintIndent => S(22);
 
     private readonly IStartupRegistration _startupRegistration;
     private readonly CheckBox _startAtLoginBox;
@@ -49,7 +49,7 @@ internal sealed class SettingsForm : Form
             BackColor = BackgroundColor,
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
-            Padding = new Padding(16, 14, 16, 14),
+            Padding = S(new Padding(16, 14, 16, 14)),
             WrapContents = false
         };
 
@@ -58,7 +58,7 @@ internal sealed class SettingsForm : Form
             AutoSize = true,
             Font = GetDesignFont("Segoe UI", 12F, FontStyle.Bold),
             ForeColor = RazerGreen,
-            Margin = new Padding(0, 0, 0, 10),
+            Margin = S(new Padding(0, 0, 0, 10)),
             Text = "Settings"
         });
 
@@ -72,7 +72,7 @@ internal sealed class SettingsForm : Form
         {
             AutoSize = true,
             ForeColor = Color.IndianRed,
-            Margin = new Padding(0, 0, 0, 6),
+            Margin = S(new Padding(0, 0, 0, 6)),
             MaximumSize = new Size(ContentWidth, 0),
             Visible = false
         };
@@ -86,8 +86,8 @@ internal sealed class SettingsForm : Form
         var closeButton = CreateActionButton("Close");
         closeButton.Dock = DockStyle.None;
         closeButton.DialogResult = DialogResult.OK;
-        closeButton.Margin = new Padding(ContentWidth - 88, 8, 0, 0);
-        closeButton.Size = new Size(88, 30);
+        closeButton.Margin = new Padding(ContentWidth - S(88), S(8), 0, 0);
+        closeButton.Size = S(new Size(88, 30));
         layout.Controls.Add(closeButton);
 
         AcceptButton = closeButton;
@@ -192,7 +192,7 @@ internal sealed class SettingsForm : Form
             Cursor = Cursors.Hand,
             Font = GetDesignFont("Segoe UI", 9.5F),
             ForeColor = Color.White,
-            Margin = new Padding(0, 4, 0, 0),
+            Margin = S(new Padding(0, 4, 0, 0)),
             Text = text
         };
 
@@ -202,7 +202,7 @@ internal sealed class SettingsForm : Form
             AutoSize = true,
             Font = GetDesignFont("Segoe UI", 8F),
             ForeColor = SubtleTextColor,
-            Margin = new Padding(HintIndent, 0, 0, 6),
+            Margin = new Padding(HintIndent, 0, 0, S(6)),
             MaximumSize = new Size(ContentWidth - HintIndent, 0),
             Text = hint
         });
@@ -214,7 +214,7 @@ internal sealed class SettingsForm : Form
     {
         BackColor = BorderColor,
         Height = 1,
-        Margin = new Padding(0, 6, 0, 8),
+        Margin = S(new Padding(0, 6, 0, 8)),
         Width = ContentWidth
     };
 
@@ -227,7 +227,7 @@ internal sealed class SettingsForm : Form
             Font = GetDesignFont("Segoe UI", 9.5F),
             LinkBehavior = LinkBehavior.HoverUnderline,
             LinkColor = color ?? RazerGreen,
-            Margin = new Padding(0, 2, 0, 2),
+            Margin = S(new Padding(0, 2, 0, 2)),
             Text = text
         };
 

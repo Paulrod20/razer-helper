@@ -33,7 +33,7 @@ internal sealed class BatterySection : SectionPanel
             BackColor = BackgroundColor,
             ColumnCount = 2,
             Dock = DockStyle.Top,
-            Height = 28,
+            Height = S(28),
             Margin = Padding.Empty,
             Padding = Padding.Empty,
             RowCount = 1
@@ -58,7 +58,7 @@ internal sealed class BatterySection : SectionPanel
             Dock = DockStyle.None,
             Font = GetDesignFont("Segoe UI", 9.5F),
             ForeColor = RazerGreen,
-            Margin = new Padding(6, 0, 0, 0),
+            Margin = S(new Padding(6, 0, 0, 0)),
             Text = $"{initialLimit}%",
             TextAlign = ContentAlignment.MiddleRight
         };
@@ -93,7 +93,7 @@ internal sealed class BatterySection : SectionPanel
         {
             BackColor = BackgroundColor,
             Dock = DockStyle.Top,
-            Height = 5
+            Height = S(5)
         };
 
         Controls.Add(_slider);

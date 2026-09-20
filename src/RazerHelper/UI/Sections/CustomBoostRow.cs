@@ -7,11 +7,11 @@ namespace RazerHelper.UI.Sections;
 /// <summary>CPU and GPU boost selectors shown while the Custom performance mode is active.</summary>
 internal sealed class CustomBoostRow : TableLayoutPanel
 {
-    public const int RowHeight = 72;
+    public static int RowHeight => S(72);
 
     // Clear space between the CPU and GPU groups. Without it the last CPU
     // button and the first GPU button sit as close as buttons in one group.
-    private const int GroupGap = 16;
+    private static int GroupGap => S(16);
 
     private readonly Dictionary<CpuBoost, Button> _cpuButtons = [];
     private readonly Dictionary<GpuBoost, Button> _gpuButtons = [];
@@ -84,8 +84,8 @@ internal sealed class CustomBoostRow : TableLayoutPanel
             Dock = DockStyle.Top,
             Font = GetDesignFont("Segoe UI", 9.5F, FontStyle.Bold),
             ForeColor = Color.White,
-            Height = 22,
-            Padding = new Padding(4, 0, 0, 0), // Line up with the section titles.
+            Height = S(22),
+            Padding = S(new Padding(4, 0, 0, 0)), // Line up with the section titles.
             Text = title,
             TextAlign = ContentAlignment.MiddleLeft
         });

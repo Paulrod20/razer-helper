@@ -18,12 +18,12 @@ namespace RazerHelper.UI.Sections;
 /// </remarks>
 internal sealed class LightingSection : SectionPanel
 {
-    private const int HeaderHeight = 28;
-    private const int LineHeight = 34;
-    private const int BottomGap = 8;
+    private static int HeaderHeight => S(28);
+    private static int LineHeight => S(34);
+    private static int BottomGap => S(8);
 
     /// <summary>The header, the two lines, and the gap that separates this section from the next.</summary>
-    public const int RowHeight = HeaderHeight + 2 * LineHeight + BottomGap;
+    public static int RowHeight => HeaderHeight + 2 * LineHeight + BottomGap;
 
     private static readonly KeyboardEffect[] KeyboardEffects =
         [KeyboardEffect.Off, KeyboardEffect.StaticGreen, KeyboardEffect.Spectrum, KeyboardEffect.Wave, KeyboardEffect.Breathing];
@@ -71,10 +71,10 @@ internal sealed class LightingSection : SectionPanel
             RowCount = 3
         };
 
-        lines.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 84));
-        lines.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+        lines.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(84)));
+        lines.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(150)));
         lines.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        lines.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
+        lines.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(48)));
         lines.RowStyles.Add(new RowStyle(SizeType.Absolute, LineHeight));
         lines.RowStyles.Add(new RowStyle(SizeType.Absolute, LineHeight));
         lines.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // Takes the spare height, so the two lines keep their size.
@@ -197,13 +197,13 @@ internal sealed class LightingSection : SectionPanel
             Effect = new DropdownButton(effects.ToArray())
             {
                 Dock = DockStyle.Fill,
-                Margin = new Padding(0, 3, 4, 3)
+                Margin = S(new Padding(0, 3, 4, 3))
             };
 
             Brightness = new ThemedSlider(LightingBrightness.MinimumPercent, LightingBrightness.MaximumPercent, 5, showLabels: false)
             {
                 Dock = DockStyle.Fill,
-                Margin = new Padding(4, 0, 0, 0)
+                Margin = S(new Padding(4, 0, 0, 0))
             };
 
             _percent = new Label
@@ -251,7 +251,7 @@ internal sealed class LightingSection : SectionPanel
                 Dock = DockStyle.Fill,
                 Font = GetDesignFont("Segoe UI", 9.5F),
                 ForeColor = Color.Silver,
-                Margin = new Padding(4, 0, 0, 0),
+                Margin = S(new Padding(4, 0, 0, 0)),
                 Text = _name,
                 TextAlign = ContentAlignment.MiddleLeft
             }, 0, row);

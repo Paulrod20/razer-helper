@@ -23,9 +23,10 @@ internal static class TemperatureText
 
     /// <summary>
     /// Where each shown temperature comes from, for a hover note. The CPU one
-    /// says plainly that it is a sensor near the CPU and reads lower than die
-    /// sensors, so nobody compares it with another tool and feels misled.
-    /// Empty when there is nothing shown.
+    /// says plainly where it comes from and that it updates more slowly than
+    /// tools such as Afterburner (compared on the developer's laptop under load,
+    /// it was very close but changed more slowly), so a difference between the
+    /// two is not a surprise. Empty when there is nothing shown.
     /// </summary>
     public static string Explain(double? cpuCelsius, double? gpuCelsius)
     {
@@ -34,8 +35,8 @@ internal static class TemperatureText
         if (cpuCelsius is not null)
         {
             lines.Add("CPU: read from the laptop's controller.");
-            lines.Add("It is a sensor near the CPU, so it reads");
-            lines.Add("lower than die sensors like Afterburner's.");
+            lines.Add("It closely follows the CPU, but updates more");
+            lines.Add("slowly than tools like Afterburner.");
         }
 
         if (gpuCelsius is not null)

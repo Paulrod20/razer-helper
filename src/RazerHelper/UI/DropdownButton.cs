@@ -34,7 +34,7 @@ internal sealed class DropdownButton : Button
         FlatStyle = FlatStyle.Flat;
         Font = GetDesignFont("Segoe UI", 9.5F);
         ForeColor = Color.White;
-        Padding = new Padding(8, 0, 22, 0);
+        Padding = S(new Padding(8, 0, 22, 0));
         TextAlign = ContentAlignment.MiddleLeft;
         UseVisualStyleBackColor = false;
         FlatAppearance.BorderColor = BorderColor;
@@ -53,7 +53,7 @@ internal sealed class DropdownButton : Button
             {
                 BackColor = ButtonColor,
                 ForeColor = Color.White,
-                Padding = new Padding(4, 4, 4, 4)
+                Padding = S(new Padding(4, 4, 4, 4))
             };
 
             item.Click += (_, _) => Pick(itemIndex);
@@ -91,14 +91,14 @@ internal sealed class DropdownButton : Button
         base.OnPaint(pevent);
 
         // The arrow, drawn as a small triangle.
-        var centerX = Width - 12;
+        var centerX = Width - S(12);
         var centerY = Height / 2;
 
         pevent.Graphics.FillPolygon(Enabled ? ArrowBrush : DisabledArrowBrush,
         [
-            new Point(centerX - 4, centerY - 2),
-            new Point(centerX + 4, centerY - 2),
-            new Point(centerX, centerY + 3)
+            new Point(centerX - S(4), centerY - S(2)),
+            new Point(centerX + S(4), centerY - S(2)),
+            new Point(centerX, centerY + S(3))
         ]);
     }
 

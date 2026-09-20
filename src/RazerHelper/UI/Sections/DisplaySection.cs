@@ -37,7 +37,7 @@ internal sealed class DisplaySection : SectionPanel
 
         var header = CreateTwoColumnLayout(60F, 40F);
         header.Dock = DockStyle.Top;
-        header.Height = 28;
+        header.Height = S(28);
 
         _statusLabel = new Label
         {

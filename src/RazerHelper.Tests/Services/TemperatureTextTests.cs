@@ -31,13 +31,14 @@ public class TemperatureTextTests
 public class TemperatureExplanationTests
 {
     [Fact]
-    public void TheCpuNote_SaysItIsANearbySensorThatReadsLowerThanDieSensors()
+    public void TheCpuNote_SaysItComesFromTheControllerAndUpdatesMoreSlowlyThanOtherTools()
     {
         var text = TemperatureText.Explain(55, null);
 
         Assert.Contains("laptop's controller", text);
-        Assert.Contains("sensor near the CPU", text);
-        Assert.Contains("lower than die sensors", text);
+        Assert.Contains("closely follows the CPU", text);
+        Assert.Contains("updates more", text);
+        Assert.Contains("slowly than tools like Afterburner", text);
     }
 
     [Fact]

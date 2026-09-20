@@ -18,7 +18,7 @@ internal abstract class SectionPanel : Panel
     {
         BackColor = BackgroundColor;
         Dock = DockStyle.Fill;
-        Margin = new Padding(0, 0, 0, 8);
+        Margin = S(new Padding(0, 0, 0, 8));
         Padding = Padding.Empty;
 
         // Read here, not in a field initializer: those run before the Control

@@ -16,9 +16,9 @@ namespace RazerHelper.UI;
 /// </remarks>
 internal sealed class ThemedSlider : Control
 {
-    private const int ThumbRadius = 9;
-    private const int TrackHeight = 4;
-    private const int LabelTop = 32;
+    private static int ThumbRadius => S(9);
+    private static int TrackHeight => S(4);
+    private static int LabelTop => S(32);
 
     private static readonly Color TrackColor = Color.FromArgb(70, 70, 70);
     private static readonly Color DisabledColor = Color.FromArgb(100, 100, 100);
@@ -72,7 +72,7 @@ internal sealed class ThemedSlider : Control
             true);
         TabStop = true;
         BackColor = BackgroundColor;
-        Height = showLabels ? 50 : 24;
+        Height = showLabels ? S(50) : S(24);
     }
 
     public event EventHandler? ValueChanged;
@@ -230,7 +230,7 @@ internal sealed class ThemedSlider : Control
     }
 
     // With labels the track sits near the top; without them it is centered.
-    private int TrackY => _showLabels ? 16 : Height / 2;
+    private int TrackY => _showLabels ? S(16) : Height / 2;
 
     private int TrackWidth => Math.Max(1, Width - ThumbRadius * 2 - 1);
 

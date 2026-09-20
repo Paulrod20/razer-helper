@@ -10,7 +10,7 @@ namespace RazerHelper.UI;
 internal sealed class ThemedToolTip : ToolTip
 {
     private static readonly Font TipFont = GetDesignFont("Segoe UI", 8F);
-    private static readonly Padding TextPadding = new(7, 3, 7, 3);
+    private static readonly Padding TextPadding = new(S(7), S(3), S(7), S(3));
     private static readonly SolidBrush BackgroundBrush = new(ButtonColor);
     private static readonly Pen BorderPen = new(BorderColor);
 

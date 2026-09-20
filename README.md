@@ -16,7 +16,7 @@ It lives in the system tray, talks to the laptop's controller directly, and need
 - **Power profiles:** separate settings for plugged in and on battery, applied automatically when you plug or unplug. On battery only Balanced is offered, as in Synapse.
 - **Battery charge limit:** 60%, 80% or 100% (no limit).
 - **Display refresh rate:** 60 Hz, 120 Hz, or Auto, which follows the power source.
-- **Temperatures:** CPU and GPU, shown at the top to the left of the power source, only while the window is open. The GPU reading comes from the graphics driver (the same source Task Manager uses). The CPU reading comes from the laptop's own controller: it is a sensor near the CPU, not the CPU die, so it reads noticeably lower than tools such as MSI Afterburner (hover it for a reminder). The GPU is read every 2 seconds and the CPU every 4, and nothing is read while the window is closed.
+- **Temperatures:** CPU and GPU, shown at the top to the left of the power source, only while the window is open. The GPU reading comes from the graphics driver (the same source Task Manager uses). The CPU reading comes from the laptop's own controller. Compared with MSI Afterburner under load on the developer's laptop it was very close, but it updates more slowly, so Afterburner's number moves faster (hover it for a reminder). It is not read from the CPU die itself. The GPU is read every 2 seconds and the CPU every 4, and nothing is read while the window is closed.
 - **Fans:** live CPU and GPU fan speed, and **Max** fan speed (both fans flat out). Max is a one-off that needs Custom mode and AC power; **Auto** turns it off, and it clears by itself when you leave Custom.
 - **Lighting:** the keyboard backlight (Off, Static green, Spectrum, Wave, Breathing) and the Razer logo on the lid (Off, On, Breathing), each with a brightness slider. Always available, on battery or plugged in.
 - **Razer background services:** shows how many are running, and can stop and restore them (see below).
@@ -58,6 +58,10 @@ It is deliberately cautious:
 - **It does nothing while an external display is connected.** On this laptop the external ports are wired to the dedicated GPU, so it stays on regardless of which apps are closed.
 - **It leaves alone** Windows itself, graphics drivers, Razer software, this app, other users' processes, background helpers with no window, and terminals, editors and the Claude desktop app.
 - **Your own never-close list:** add program names to `NeverCloseApps` in `%LOCALAPPDATA%\RazerHelper\settings.json`, for example `"NeverCloseApps": ["blender", "obs64"]`. Names are the process name without `.exe`.
+
+## Window size
+
+The window is drawn a little larger on high-resolution screens so it stays easy to read: it grows a quarter as fast as Windows' own display scaling (for example about 30% larger at 225% scaling, and unchanged at 100%). To choose your own size, add `"WindowScale"` to `%LOCALAPPDATA%\RazerHelper\settings.json` (for example `"WindowScale": 1.5`; allowed range 0.75 to 3) and restart the app. Remove it to go back to the automatic size.
 
 ## Requirements
 

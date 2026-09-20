@@ -93,7 +93,7 @@ internal sealed class PerformanceSection : SectionPanel
 
         var header = CreateTwoColumnLayout(50F, 50F);
         header.Dock = DockStyle.Top;
-        header.Height = 28;
+        header.Height = S(28);
         header.Controls.Add(CreateSectionLabel("Performance Mode"), 0, 0);
         header.Controls.Add(headerValues, 1, 0);
 
@@ -161,7 +161,7 @@ internal sealed class PerformanceSection : SectionPanel
             return;
 
         _temperatureLabel.Text = text;
-        _temperatureLabel.Margin = text.Length > 0 ? new Padding(0, 0, 16, 0) : Padding.Empty;
+        _temperatureLabel.Margin = text.Length > 0 ? S(new Padding(0, 0, 16, 0)) : Padding.Empty;
         _toolTip.SetToolTip(_temperatureLabel, TemperatureText.Explain(reading.CpuCelsius, reading.GpuCelsius));
     }
 

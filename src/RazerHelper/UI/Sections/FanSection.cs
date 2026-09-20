@@ -19,7 +19,7 @@ internal sealed class FanSection : SectionPanel
     private const int PollIntervalMilliseconds = 2_000;
 
     // Each button plus its margins.
-    private const int ModeButtonCellWidth = 140;
+    private static int ModeButtonCellWidth => S(140);
 
     private const string MaxUnavailableHint = "Needs Custom mode, plugged in";
 
@@ -66,9 +66,9 @@ internal sealed class FanSection : SectionPanel
             BackColor = BackgroundColor,
             ColumnCount = 3,
             Dock = DockStyle.Top,
-            Height = 24,
+            Height = S(24),
             Margin = Padding.Empty,
-            Padding = new Padding(0, 0, 0, 2),
+            Padding = S(new Padding(0, 0, 0, 2)),
             RowCount = 1
         };
 
@@ -258,7 +258,7 @@ internal sealed class FanSection : SectionPanel
         Dock = DockStyle.Fill,
         Font = GetDesignFont("Segoe UI", 9.5F),
         ForeColor = Color.Silver,
-        Margin = new Padding(4, 0, 0, 0), // Same 4px inset as the buttons below.
+        Margin = S(new Padding(4, 0, 0, 0)), // Same 4px inset as the buttons below.
         Text = text,
         TextAlign = ContentAlignment.MiddleLeft
     };

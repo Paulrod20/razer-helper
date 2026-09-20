@@ -30,4 +30,8 @@ internal sealed record AppSettings(
     Dictionary<string, string>? RazerLoginApprovals = null,
     // Off unless the user turns it on: the window stays above other windows
     // (borderless-window games included).
-    bool AlwaysOnTop = false);
+    bool AlwaysOnTop = false,
+    // How much bigger than the base design the window is drawn (1 = base size).
+    // Null picks a size from Windows' display scaling. Edited by hand in
+    // settings.json, for example 1.5; applies the next time the app starts.
+    double? WindowScale = null);

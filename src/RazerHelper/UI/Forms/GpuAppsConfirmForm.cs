@@ -14,7 +14,7 @@ namespace RazerHelper.UI.Forms;
 /// </summary>
 internal sealed class GpuAppsConfirmForm : Form
 {
-    private const int ContentWidth = 380;
+    private static int ContentWidth => S(380);
 
     private readonly IPowerSource _powerSource;
     private readonly bool _dismissWhenPluggedIn;
@@ -42,7 +42,7 @@ internal sealed class GpuAppsConfirmForm : Form
             BackColor = BackgroundColor,
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
-            Padding = new Padding(16, 14, 16, 14),
+            Padding = S(new Padding(16, 14, 16, 14)),
             WrapContents = false
         };
 
@@ -51,7 +51,7 @@ internal sealed class GpuAppsConfirmForm : Form
             AutoSize = true,
             Font = GetDesignFont("Segoe UI", 12F, FontStyle.Bold),
             ForeColor = RazerGreen,
-            Margin = new Padding(0, 0, 0, 8),
+            Margin = S(new Padding(0, 0, 0, 8)),
             Text = "Save battery?"
         });
 
@@ -67,12 +67,12 @@ internal sealed class GpuAppsConfirmForm : Form
         var yes = CreateActionButton("Ask them to close");
         yes.Dock = DockStyle.None;
         yes.DialogResult = DialogResult.Yes;
-        yes.Size = new Size(150, 32);
+        yes.Size = S(new Size(150, 32));
 
         var no = CreateActionButton("Not now");
         no.Dock = DockStyle.None;
         no.DialogResult = DialogResult.No;
-        no.Size = new Size(100, 32);
+        no.Size = S(new Size(100, 32));
 
         // Enter and Esc both mean "no": closing programs is never the default.
         AcceptButton = no;
@@ -82,7 +82,7 @@ internal sealed class GpuAppsConfirmForm : Form
         {
             AutoSize = true,
             FlowDirection = FlowDirection.RightToLeft,
-            Margin = new Padding(0, 12, 0, 0),
+            Margin = S(new Padding(0, 12, 0, 0)),
             Width = ContentWidth
         };
         buttons.Controls.Add(no);

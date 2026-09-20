@@ -26,7 +26,7 @@ internal static class UiControls
     {
         var header = CreateTwoColumnLayout(60F, 40F);
         header.Dock = DockStyle.Top;
-        header.Height = 28;
+        header.Height = S(28);
 
         header.Controls.Add(CreateSectionLabel(title), 0, 0);
 
@@ -124,7 +124,7 @@ internal static class UiControls
             FlatStyle = FlatStyle.Flat,
             Font = GetDesignFont("Segoe UI", 9.5F),
             ForeColor = Color.White,
-            Margin = new Padding(4),
+            Margin = S(new Padding(4)),
             Text = text,
             UseVisualStyleBackColor = false
         };

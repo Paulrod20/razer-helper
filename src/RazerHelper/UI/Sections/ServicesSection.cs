@@ -19,7 +19,7 @@ namespace RazerHelper.UI.Sections;
 internal sealed class ServicesSection : SectionPanel
 {
     // The rule, the spacing under it, the count and button, and the one-line note.
-    public const int RowHeight = 70;
+    public static int RowHeight => S(70);
 
     private static readonly TimeSpan HoverRefreshInterval = TimeSpan.FromSeconds(2);
 
@@ -73,12 +73,12 @@ internal sealed class ServicesSection : SectionPanel
             ColumnCount = 2,
             Dock = DockStyle.Fill,
             Margin = Padding.Empty,
-            Padding = new Padding(0, 8, 0, 0), // Clear space below the rule.
+            Padding = S(new Padding(0, 8, 0, 0)), // Clear space below the rule.
             RowCount = 1
         };
 
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96F));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, S(96F)));
         row.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         row.Controls.Add(_countLabel, 0, 0);
         row.Controls.Add(_actionButton, 1, 0);
@@ -98,8 +98,8 @@ internal sealed class ServicesSection : SectionPanel
             Dock = DockStyle.Bottom,
             Font = GetDesignFont("Segoe UI", 8F),
             ForeColor = SubtleTextColor,
-            Height = 20,
-            Padding = new Padding(4, 0, 0, 0),
+            Height = S(20),
+            Padding = S(new Padding(4, 0, 0, 0)),
             Text = "Tip: uninstall Razer Synapse for the cleanest experience.",
             TextAlign = ContentAlignment.MiddleLeft
         };

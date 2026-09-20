@@ -35,7 +35,7 @@ internal sealed class AppFooter : TableLayoutPanel
             TextAlign = ContentAlignment.BottomLeft
         }, 0, 0);
 
-        var freeUpLink = CreateLink("Free up GPU", new Padding(0, 0, 14, 0));
+        var freeUpLink = CreateLink("Free up GPU", S(new Padding(0, 0, 14, 0)));
         freeUpLink.LinkClicked += (_, _) => FreeUpGpuRequested?.Invoke(this, EventArgs.Empty);
         Controls.Add(freeUpLink, 1, 0);
 

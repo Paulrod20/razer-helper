@@ -87,6 +87,24 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void Load_FromAnOlderFile_LeavesTheWindowSizeAutomatic()
+    {
+        WriteSettings("""{ "DisplayMode": "Auto" }""");
+
+        Assert.Null(new SettingsService(_directory).Load().WindowScale);
+    }
+
+    [Fact]
+    public void Save_ThenLoad_KeepsTheWindowSize()
+    {
+        var service = new SettingsService(_directory);
+
+        service.Save(new AppSettings(WindowScale: 1.5));
+
+        Assert.Equal(1.5, service.Load().WindowScale);
+    }
+
+    [Fact]
     public void Save_ThenLoad_KeepsAlwaysOnTop()
     {
         var service = new SettingsService(_directory);

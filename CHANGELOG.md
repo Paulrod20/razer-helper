@@ -14,6 +14,7 @@ The first release. Built and tested on a **Razer Blade 16 (2023)** running Windo
 - **Razer background software:** shows what is running, and can stop it and turn off its start-at-login entry, then restore everything exactly as it was. Nothing is ever force-closed or uninstalled.
 - **Free up GPU:** lists apps keeping the dedicated GPU awake and asks before closing them, on demand or automatically when you unplug (off by default).
 - **Open from anywhere:** press **Fn+Del** in any program, even a game, to bring the window to the front. An **Always on top** setting is also available.
+- **Readable on high-resolution screens:** the window grows with Windows' display scaling (about 30% larger at 225%), and the size can be set by hand with `WindowScale` in `settings.json`.
 - **Settings:** start at login, automatic profile switching, hide when clicking away, and **Reset to defaults**.
 - Lives in the tray, needs no account, no cloud, no driver and no background service of its own. It does nothing until you open it.
 
@@ -25,7 +26,7 @@ The first release. Built and tested on a **Razer Blade 16 (2023)** running Windo
 
 ### Known limits
 
-- **The CPU die temperature is not shown.** Windows does not expose it without a kernel driver, and RazerHelper installs none. The CPU figure is a sensor near the CPU in the laptop's controller, so it reads lower than tools such as MSI Afterburner.
+- **The CPU die temperature is not shown.** Windows does not expose it without a kernel driver, and RazerHelper installs none. The CPU figure comes from a sensor in the laptop's controller. Compared with MSI Afterburner under load on a Blade 16 (2023) it was very close, but it updates more slowly, so Afterburner's number moves faster.
 - **No choice of keyboard color or per-key lighting.** On the Blade 16 the laptop only honors a chosen color in a mode that also turns off the Fn media keys, so RazerHelper offers the built-in effects (including a static Razer green) instead.
 - **Games in true exclusive fullscreen** can cover the window, and opening it may make such a game minimize. Borderless and windowed games work.
 - **While RazerHelper runs, the Insert key** (Fn+Del on the Blade) opens the window instead of toggling overwrite mode.

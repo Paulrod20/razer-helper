@@ -27,13 +27,13 @@ public sealed class TrayPopupForm : Form
         Footer
     }
 
-    private const int HeaderRowHeight = 34;
-    private const int DisplayRowHeight = 74;
-    private const int BatteryRowHeight = 104;
-    private const int FooterRowHeight = 24;
+    private static int HeaderRowHeight => S(34);
+    private static int DisplayRowHeight => S(74);
+    private static int BatteryRowHeight => S(104);
+    private static int FooterRowHeight => S(24);
 
-    private const int PerformanceBaseRowHeight = 124;
-    private const int FanRowHeight = 108; // Header, the two readouts and the taller Auto / Max buttons.
+    private static int PerformanceBaseRowHeight => S(124);
+    private static int FanRowHeight => S(108); // Header, the two readouts and the taller Auto / Max buttons.
 
     private static readonly string ModelText = DeviceSupportService.SupportedModelName;
 
@@ -271,7 +271,7 @@ public sealed class TrayPopupForm : Form
         ShowInTaskbar = false;
         // Wide enough that the longest button label ("Medium" in the Custom row)
         // fits with a clear gap between the CPU and GPU groups.
-        ClientSize = new Size(584, 600);
+        ClientSize = S(new Size(584, 600));
         Text = "RazerHelper";
         StartPosition = FormStartPosition.Manual;
     }
@@ -284,7 +284,7 @@ public sealed class TrayPopupForm : Form
             ColumnCount = 1,
             Dock = DockStyle.Fill,
             Margin = Padding.Empty,
-            Padding = new Padding(16, 12, 16, 12),
+            Padding = S(new Padding(16, 12, 16, 12)),
             RowCount = Enum.GetValues<Row>().Length
         };
 
@@ -497,7 +497,7 @@ public sealed class TrayPopupForm : Form
         Dock = DockStyle.Fill,
         Font = GetDesignFont("Segoe UI", 8.5F),
         ForeColor = SubtleTextColor,
-        Margin = new Padding(12, 0, 0, 0),
+        Margin = S(new Padding(12, 0, 0, 0)),
         Text = ModelText,
         TextAlign = ContentAlignment.MiddleRight
     };
