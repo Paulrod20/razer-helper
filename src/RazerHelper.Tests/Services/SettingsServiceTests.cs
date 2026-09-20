@@ -73,7 +73,7 @@ public sealed class SettingsServiceTests : IDisposable
         var settings = service.Load();
 
         Assert.True(settings.CloseGpuAppsOnUnplug);
-        Assert.Equal(["blender", "gimp"], settings.NeverCloseApps);
+        Assert.Equal(["blender", "gimp"], Assert.IsType<string[]>(settings.NeverCloseApps));
     }
 
     [Fact]

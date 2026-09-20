@@ -39,7 +39,7 @@ internal enum DgpuFreeUpOutcome
 /// open. The automatic path reacts only to a real plugged-in to battery change:
 /// Windows also reports battery percentage updates, which must never trigger it.
 /// </summary>
-internal sealed class DgpuUnplugCoordinator : IDisposable
+internal sealed class DgpuFreeUpCoordinator : IDisposable
 {
     private readonly IPowerSource _powerSource;
     private readonly Func<Task<DgpuScanResult>> _scanAsync;
@@ -58,7 +58,7 @@ internal sealed class DgpuUnplugCoordinator : IDisposable
     /// so it should be withdrawn if the charger comes back.
     /// </param>
     /// <param name="close">Asks the given apps to close.</param>
-    public DgpuUnplugCoordinator(
+    public DgpuFreeUpCoordinator(
         IPowerSource powerSource,
         Func<Task<DgpuScanResult>> scanAsync,
         Func<IReadOnlyList<DgpuApp>, bool, Task<bool>> confirmAsync,

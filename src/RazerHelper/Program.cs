@@ -21,6 +21,10 @@ namespace RazerHelper
             if (RazerServiceCommand.TryRun(args, new WindowsServiceControl()) is int exitCode)
                 return exitCode;
 
+            // After a restart from Settings, let the old copy finish exiting first:
+            // it still holds the single-instance lock below until it is gone.
+            AppRestart.WaitForPreviousCopy(args);
+
             // Two instances would compete for the shared HID command channel
             // and overwrite each other's settings file.
             using var singleInstanceMutex = new Mutex(

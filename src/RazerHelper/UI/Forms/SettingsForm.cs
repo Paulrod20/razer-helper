@@ -78,6 +78,7 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(CreateDivider());
         layout.Controls.Add(CreateLink("Razer drivers and support", ExternalLinks.OpenRazerDrivers));
         layout.Controls.Add(CreateLink("Open log folder", ExternalLinks.OpenLogFolder));
+        layout.Controls.Add(CreateLink("Reset to defaults...", ConfirmReset, Color.IndianRed));
 
         var closeButton = CreateActionButton("Close");
         closeButton.Dock = DockStyle.None;
@@ -108,6 +109,9 @@ internal sealed class SettingsForm : Form
     public event EventHandler<bool>? HideWhenClickedAwayChanged;
 
     public event EventHandler<bool>? CloseGpuAppsOnUnplugChanged;
+
+    /// <summary>True when the user confirmed a reset; the window then closes and the caller carries it out.</summary>
+    public bool ResetConfirmed { get; private set; }
 
     private bool ReadStartAtLogin()
     {
@@ -149,6 +153,30 @@ internal sealed class SettingsForm : Form
         }
     }
 
+    // Says exactly what will change before anything does. "No" is the default.
+    private void ConfirmReset()
+    {
+        var answer = MessageBox.Show(
+            this,
+            "Reset RazerHelper to how it was the first time you opened it?\r\n\r\n" +
+            "This will:\r\n" +
+            "  - clear your saved settings, including the options in this window and your never-close list\r\n" +
+            "  - turn off Start at login\r\n" +
+            "  - set the laptop to Balanced mode with no battery charge limit\r\n\r\n" +
+            "It will not change Razer's background services or anything else on your PC. RazerHelper will restart.",
+            "Reset to defaults",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+
+        if (answer != DialogResult.Yes)
+            return;
+
+        ResetConfirmed = true;
+        DialogResult = DialogResult.OK;
+        Close();
+    }
+
     private static CheckBox AddOption(FlowLayoutPanel layout, string text, string hint)
     {
         var box = new CheckBox
@@ -183,7 +211,7 @@ internal sealed class SettingsForm : Form
         Width = ContentWidth
     };
 
-    private static LinkLabel CreateLink(string text, Action open)
+    private static LinkLabel CreateLink(string text, Action open, Color? color = null)
     {
         var link = new LinkLabel
         {
@@ -191,7 +219,7 @@ internal sealed class SettingsForm : Form
             AutoSize = true,
             Font = CreateDesignFont("Segoe UI", 9.5F),
             LinkBehavior = LinkBehavior.HoverUnderline,
-            LinkColor = RazerGreen,
+            LinkColor = color ?? RazerGreen,
             Margin = new Padding(0, 2, 0, 2),
             Text = text
         };

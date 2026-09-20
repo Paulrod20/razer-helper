@@ -25,6 +25,7 @@ public sealed class TrayPopupForm : Form
     private static readonly string ModelText = DeviceSupportService.SupportedModelName;
 
     private bool _allowClose;
+    private bool _isResetting;
     private int _modalDepth;
     private bool _customRowShown;
     private bool _servicesRowShown;
@@ -39,7 +40,8 @@ public sealed class TrayPopupForm : Form
     private readonly FanSection _fanSection;
     private readonly PerformanceSection _performanceSection;
     private readonly ServicesSection _servicesSection;
-    private readonly DgpuUnplugCoordinator _dgpuCoordinator;
+    private readonly DgpuFreeUpCoordinator _dgpuCoordinator;
+    private readonly FactoryReset _factoryReset;
     private readonly SynchronizationContext _uiContext;
     private readonly Label _headerStatusLabel = CreateHeaderStatusLabel();
     private readonly ToolTip _toolTip = new();
@@ -121,7 +123,7 @@ public sealed class TrayPopupForm : Form
         // Off unless the user turned it on. Reads the settings at the moment
         // it runs, so a change to the never-close list applies at once.
         var closer = new DgpuAppCloser(processControl ?? new WindowsProcessControl());
-        _dgpuCoordinator = new DgpuUnplugCoordinator(
+        _dgpuCoordinator = new DgpuFreeUpCoordinator(
             _powerSource,
             () => DgpuScanner.ScanAsync(_settings.NeverCloseApps),
             ConfirmCloseGpuAppsAsync,
@@ -129,6 +131,12 @@ public sealed class TrayPopupForm : Form
         {
             Enabled = _settings.CloseGpuAppsOnUnplug
         };
+
+        _factoryReset = new FactoryReset(
+            _settingsService,
+            _startupRegistration,
+            new PerformanceService(_transport),
+            new BatteryChargeLimitService(_transport));
 
         // Keep the tray popup's design surface stable across display scales.
         AutoScaleMode = AutoScaleMode.None;
@@ -195,7 +203,10 @@ public sealed class TrayPopupForm : Form
         _content.Controls.Add(_displaySection, 0, 3);
         _content.Controls.Add(_batterySection, 0, 4);
         _content.Controls.Add(_servicesSection, 0, ServicesRow);
-        _content.Controls.Add(CreateFooter(), 0, FooterRow);
+        var footer = new AppFooter();
+        footer.FreeUpGpuRequested += async (_, _) => await FreeUpGpuAsync();
+        footer.SettingsRequested += (_, _) => ShowSettings();
+        _content.Controls.Add(footer, 0, FooterRow);
 
         Controls.Add(_content);
 
@@ -255,79 +266,18 @@ public sealed class TrayPopupForm : Form
         return header;
     }
 
-    // The very bottom of the popup: the app version on the left, then the
-    // "Free up GPU" and Settings links on the right.
-    private Control CreateFooter()
-    {
-        var footer = new TableLayoutPanel
-        {
-            BackColor = BackgroundColor,
-            ColumnCount = 3,
-            Dock = DockStyle.Fill,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty,
-            RowCount = 1
-        };
-
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-        footer.Controls.Add(new Label
-        {
-            AutoSize = false,
-            Dock = DockStyle.Fill,
-            Font = CreateDesignFont("Segoe UI", 8F),
-            ForeColor = SubtleTextColor,
-            Margin = Padding.Empty,
-            Text = $"RazerHelper {AppVersion.Current}",
-            TextAlign = ContentAlignment.BottomLeft
-        }, 0, 0);
-
-        var freeUpLink = CreateFooterLink("Free up GPU", new Padding(0, 0, 14, 0));
-        freeUpLink.LinkClicked += async (_, _) => await FreeUpGpuAsync();
-        footer.Controls.Add(freeUpLink, 1, 0);
-
-        var settingsLink = CreateFooterLink("Settings", Padding.Empty);
-        settingsLink.LinkClicked += (_, _) => ShowSettings();
-        footer.Controls.Add(settingsLink, 2, 0);
-
-        return footer;
-    }
-
-    private static LinkLabel CreateFooterLink(string text, Padding margin) => new()
-    {
-        ActiveLinkColor = Color.White,
-        AutoSize = true,
-        Dock = DockStyle.Fill,
-        Font = CreateDesignFont("Segoe UI", 8.5F),
-        LinkBehavior = LinkBehavior.HoverUnderline,
-        LinkColor = Color.Silver,
-        Margin = margin,
-        Text = text,
-        TextAlign = ContentAlignment.BottomRight
-    };
-
     // The user asked to close the apps keeping the dedicated GPU awake. The
     // list and the question come from the coordinator; this only tells them
     // when nothing was closed and why. The popup is held open meanwhile,
     // because the question window takes focus from it.
     private async Task FreeUpGpuAsync()
     {
-        _modalDepth++;
+        using var hold = KeepOpen();
 
-        try
-        {
-            var outcome = await _dgpuCoordinator.FreeUpAsync();
+        var outcome = await _dgpuCoordinator.FreeUpAsync();
 
-            if (DgpuText.DescribeOutcome(outcome) is { } message)
-                MessageBox.Show(this, message, "Free up GPU", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        finally
-        {
-            _modalDepth--;
-        }
+        if (DgpuText.DescribeOutcome(outcome) is { } message)
+            MessageBox.Show(this, message, "Free up GPU", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     // The coordinator works off the UI thread; the question has to be asked on it.
@@ -370,18 +320,52 @@ public sealed class TrayPopupForm : Form
             _dgpuCoordinator.Enabled = enabled;
         };
 
-        // The window takes focus from the popup, which would hide it (and the
-        // window with it) unless auto-hide is held off.
-        _modalDepth++;
-
-        try
-        {
+        using (KeepOpen())
             settingsForm.ShowDialog(this);
-        }
-        finally
+
+        if (settingsForm.ResetConfirmed)
+            _ = ResetToDefaultsAsync();
+    }
+
+    // Confirmed in the Settings window. Clears everything, then restarts so the
+    // whole app comes up as it would on a first run. A part that fails is
+    // reported, but never stops the rest or the restart.
+    private async Task ResetToDefaultsAsync()
+    {
+        _isResetting = true;
+        using var hold = KeepOpen(); // The message boxes below must not hide the popup.
+
+        var result = await _factoryReset.RunAsync(_settings);
+
+        if (!result.Succeeded)
         {
-            _modalDepth--;
+            MessageBox.Show(
+                this,
+                "Most of the reset worked, but not everything:\r\n\r\n  - " + string.Join("\r\n  - ", result.Problems) +
+                "\r\n\r\nRazerHelper will restart now. Details are in the log.",
+                "Reset to defaults",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
+
+        if (!AppRestart.Relaunch())
+        {
+            // Still running: keep what is in memory in step with the cleared
+            // file, so the next change does not write the old settings back.
+            _settings = FactoryReset.DefaultsKeepingServiceRecord(_settings);
+            _isResetting = false;
+
+            MessageBox.Show(
+                this,
+                "The reset is done, but RazerHelper could not restart itself. Please close it from the tray icon and open it again.",
+                "Reset to defaults",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        CloseForApplicationExit();
+        Application.ExitThread();
     }
 
     private static Label CreateHeaderStatusLabel() => new()
@@ -424,6 +408,10 @@ public sealed class TrayPopupForm : Form
 
     private void SaveSettings(AppSettings settings)
     {
+        // A reset is in progress: nothing may write the old settings back.
+        if (_isResetting)
+            return;
+
         _settings = settings;
         _settingsService.Save(settings);
     }
@@ -462,8 +450,33 @@ public sealed class TrayPopupForm : Form
         ResizeToFitRows();
     }
 
-    // A dialog or the elevation prompt takes focus from the popup, which
-    // would hide it (and the dialog with it) unless auto-hide is held off.
+    // A dialog takes focus from the popup, which would hide it (and the dialog
+    // with it) unless auto-hide is held off. Hold it for as long as the
+    // returned value is not disposed.
+    private OpenHold KeepOpen() => new(this);
+
+    private sealed class OpenHold : IDisposable
+    {
+        private TrayPopupForm? _form;
+
+        public OpenHold(TrayPopupForm form)
+        {
+            _form = form;
+            form._modalDepth++;
+        }
+
+        public void Dispose()
+        {
+            if (_form is null)
+                return;
+
+            _form._modalDepth--;
+            _form = null;
+        }
+    }
+
+    // The elevation prompt takes focus from the popup too, and reports when it
+    // starts and ends rather than being a scope, so it counts the same way.
     private void ServicesSection_ModalStateChanged(object? sender, bool isModal) =>
         _modalDepth += isModal ? 1 : -1;
 

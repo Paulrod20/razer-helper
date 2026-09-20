@@ -83,7 +83,8 @@ internal sealed class SettingsService
             ? parsed
             : null;
 
-    public void Save(AppSettings settings)
+    /// <summary>Writes the settings. Returns false (and logs) if the file could not be written.</summary>
+    public bool Save(AppSettings settings)
     {
         try
         {
@@ -94,12 +95,14 @@ internal sealed class SettingsService
 
             File.WriteAllText(temporaryPath, json);
             File.Move(temporaryPath, _settingsPath, overwrite: true);
+            return true;
         }
         catch (Exception exception) when (
             exception is IOException or
             UnauthorizedAccessException)
         {
             AppLog.Error("Could not save RazerHelper settings.", exception);
+            return false;
         }
     }
 }

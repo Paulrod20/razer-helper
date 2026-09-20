@@ -14,11 +14,28 @@ It lives in the system tray, talks to the laptop's controller directly, and need
 - **Display refresh rate:** 60 Hz, 120 Hz, or Auto, which follows the power source.
 - **Fans:** live CPU and GPU fan speed, and **Max** fan speed (both fans flat out). Max is a one-off that needs Custom mode and AC power; **Auto** turns it off, and it clears by itself when you leave Custom.
 - **Razer background services:** shows how many are running, and can stop and restore them (see below).
-- **Settings** (link at the bottom right): start at login, switch profile automatically when you plug in or unplug, hide the window when you click away, and shortcuts to Razer's drivers and support page and to the log folder.
+- **Settings** (link at the bottom right): start at login, switch profile automatically when you plug in or unplug, hide the window when you click away, close apps using the dedicated GPU when you unplug (see below), shortcuts to Razer's drivers and support page and to the log folder, and **Reset to defaults**.
+
+**Reset to defaults** (in Settings) puts the app back the way it was the first time you opened it, if something ever seems stuck. After you confirm, it clears your saved settings, turns off Start at login, sets the laptop to Balanced mode with no battery charge limit, and restarts. It does not touch Razer's background services (the record of what they were set to is kept, so Start can still restore them) or anything else on your PC.
 
 ## Not yet
 
-Manual fan control, keyboard and logo lighting, the CPU overclock toggle, closing apps that use the dedicated GPU when you unplug, other Blade models, and Razer mice, keyboards and headsets.
+Manual fan control, keyboard and logo lighting, the CPU overclock toggle, other Blade models, and Razer mice, keyboards and headsets.
+
+## Closing apps that use the dedicated GPU
+
+An app that keeps the dedicated GPU awake drains the battery. There are two ways to deal with that:
+
+- **Free up GPU** (link at the bottom of the window) lists those apps and asks whether to close them. Use it whenever you like, plugged in or not, for example after unplugging an external monitor.
+- **Close apps using the dedicated GPU when unplugged** (in Settings, off by default) does the same automatically when you unplug the charger.
+
+It is deliberately cautious:
+
+- **It always asks first**, and the default answer is "Not now". After an unplug, if you plug the charger back in, the question goes away.
+- **It never force-closes anything.** It asks each app's main window to close, the same as clicking the X, so an app with unsaved work can still ask you to save.
+- **It does nothing while an external display is connected.** On this laptop the external ports are wired to the dedicated GPU, so it stays on regardless of which apps are closed.
+- **It leaves alone** Windows itself, graphics drivers, Razer software, this app, other users' processes, background helpers with no window, and terminals, editors and the Claude desktop app.
+- **Your own never-close list:** add program names to `NeverCloseApps` in `%LOCALAPPDATA%\RazerHelper\settings.json`, for example `"NeverCloseApps": ["blender", "obs64"]`. Names are the process name without `.exe`.
 
 ## Requirements
 
