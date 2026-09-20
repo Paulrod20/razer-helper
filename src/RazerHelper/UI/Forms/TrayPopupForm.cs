@@ -39,6 +39,8 @@ public sealed class TrayPopupForm : Form
     private readonly FanSection _fanSection;
     private readonly PerformanceSection _performanceSection;
     private readonly ServicesSection _servicesSection;
+    private readonly DgpuUnplugCoordinator _dgpuCoordinator;
+    private readonly SynchronizationContext _uiContext;
     private readonly Label _headerStatusLabel = CreateHeaderStatusLabel();
     private readonly ToolTip _toolTip = new();
     private TableLayoutPanel _content = null!;
@@ -67,13 +69,18 @@ public sealed class TrayPopupForm : Form
         IServiceControl serviceControl,
         SettingsService settingsService,
         IStartupRegistration startupRegistration,
-        bool ownsDependencies = false)
+        bool ownsDependencies = false,
+        IProcessControl? processControl = null)
     {
         _transport = transport;
         _powerSource = powerSource;
         _settingsService = settingsService;
         _startupRegistration = startupRegistration;
         _ownsDependencies = ownsDependencies;
+
+        // Read here, not in a field initializer: those run before the Form
+        // base constructor, which is what may install the context.
+        _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
         _settings = _settingsService.Load();
 
@@ -110,6 +117,18 @@ public sealed class TrayPopupForm : Form
         _servicesSection.StartModesRecorded += ServicesSection_StartModesRecorded;
         _servicesSection.ModalStateChanged += ServicesSection_ModalStateChanged;
         _servicesSection.StatusChanged += Section_StatusChanged;
+
+        // Off unless the user turned it on. Reads the settings at the moment
+        // it runs, so a change to the never-close list applies at once.
+        var closer = new DgpuAppCloser(processControl ?? new WindowsProcessControl());
+        _dgpuCoordinator = new DgpuUnplugCoordinator(
+            _powerSource,
+            () => DgpuScanner.ScanAsync(_settings.NeverCloseApps),
+            ConfirmCloseGpuAppsAsync,
+            apps => closer.Close(apps, _settings.NeverCloseApps))
+        {
+            Enabled = _settings.CloseGpuAppsOnUnplug
+        };
 
         // Keep the tray popup's design surface stable across display scales.
         AutoScaleMode = AutoScaleMode.None;
@@ -236,14 +255,14 @@ public sealed class TrayPopupForm : Form
         return header;
     }
 
-    // The very bottom of the popup: the app version on the left, the
-    // Settings link on the right.
+    // The very bottom of the popup: the app version on the left, then the
+    // "Free up GPU" and Settings links on the right.
     private Control CreateFooter()
     {
         var footer = new TableLayoutPanel
         {
             BackColor = BackgroundColor,
-            ColumnCount = 2,
+            ColumnCount = 3,
             Dock = DockStyle.Fill,
             Margin = Padding.Empty,
             Padding = Padding.Empty,
@@ -251,6 +270,7 @@ public sealed class TrayPopupForm : Form
         };
 
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
@@ -265,23 +285,70 @@ public sealed class TrayPopupForm : Form
             TextAlign = ContentAlignment.BottomLeft
         }, 0, 0);
 
-        var settingsLink = new LinkLabel
-        {
-            ActiveLinkColor = Color.White,
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            Font = CreateDesignFont("Segoe UI", 8.5F),
-            LinkBehavior = LinkBehavior.HoverUnderline,
-            LinkColor = Color.Silver,
-            Margin = Padding.Empty,
-            Text = "Settings",
-            TextAlign = ContentAlignment.BottomRight
-        };
+        var freeUpLink = CreateFooterLink("Free up GPU", new Padding(0, 0, 14, 0));
+        freeUpLink.LinkClicked += async (_, _) => await FreeUpGpuAsync();
+        footer.Controls.Add(freeUpLink, 1, 0);
 
+        var settingsLink = CreateFooterLink("Settings", Padding.Empty);
         settingsLink.LinkClicked += (_, _) => ShowSettings();
-        footer.Controls.Add(settingsLink, 1, 0);
+        footer.Controls.Add(settingsLink, 2, 0);
 
         return footer;
+    }
+
+    private static LinkLabel CreateFooterLink(string text, Padding margin) => new()
+    {
+        ActiveLinkColor = Color.White,
+        AutoSize = true,
+        Dock = DockStyle.Fill,
+        Font = CreateDesignFont("Segoe UI", 8.5F),
+        LinkBehavior = LinkBehavior.HoverUnderline,
+        LinkColor = Color.Silver,
+        Margin = margin,
+        Text = text,
+        TextAlign = ContentAlignment.BottomRight
+    };
+
+    // The user asked to close the apps keeping the dedicated GPU awake. The
+    // list and the question come from the coordinator; this only tells them
+    // when nothing was closed and why. The popup is held open meanwhile,
+    // because the question window takes focus from it.
+    private async Task FreeUpGpuAsync()
+    {
+        _modalDepth++;
+
+        try
+        {
+            var outcome = await _dgpuCoordinator.FreeUpAsync();
+
+            if (DgpuText.DescribeOutcome(outcome) is { } message)
+                MessageBox.Show(this, message, "Free up GPU", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        finally
+        {
+            _modalDepth--;
+        }
+    }
+
+    // The coordinator works off the UI thread; the question has to be asked on it.
+    private Task<bool> ConfirmCloseGpuAppsAsync(IReadOnlyList<DgpuApp> apps, bool dismissWhenPluggedIn)
+    {
+        var answer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        _uiContext.Post(_ =>
+        {
+            try
+            {
+                using var confirm = new GpuAppsConfirmForm(apps, _powerSource, dismissWhenPluggedIn);
+                answer.SetResult(confirm.ShowDialog() == DialogResult.Yes);
+            }
+            catch (Exception exception)
+            {
+                answer.SetException(exception);
+            }
+        }, null);
+
+        return answer.Task;
     }
 
     private void ShowSettings()
@@ -296,6 +363,12 @@ public sealed class TrayPopupForm : Form
 
         settingsForm.HideWhenClickedAwayChanged += (_, enabled) =>
             SaveSettings(_settings with { HideWhenClickedAway = enabled });
+
+        settingsForm.CloseGpuAppsOnUnplugChanged += (_, enabled) =>
+        {
+            SaveSettings(_settings with { CloseGpuAppsOnUnplug = enabled });
+            _dgpuCoordinator.Enabled = enabled;
+        };
 
         // The window takes focus from the popup, which would hide it (and the
         // window with it) unless auto-hide is held off.
@@ -432,6 +505,7 @@ public sealed class TrayPopupForm : Form
         if (disposing)
         {
             _toolTip.Dispose();
+            _dgpuCoordinator.Dispose();
 
             // Only what the form created itself; supplied dependencies belong to the caller.
             if (_ownsDependencies)

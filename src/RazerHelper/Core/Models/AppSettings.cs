@@ -18,4 +18,9 @@ internal sealed record AppSettings(
     // Settings window. Both are on unless the user turns them off, which is
     // also what a settings file from an earlier version means.
     bool AutoSwitchProfiles = true,
-    bool HideWhenClickedAway = true);
+    bool HideWhenClickedAway = true,
+    // Off unless the user turns it on: it closes other programs.
+    bool CloseGpuAppsOnUnplug = false,
+    // Program names (e.g. "blender") to never close, on top of the built-in
+    // list. Edited by hand in settings.json.
+    string[]? NeverCloseApps = null);

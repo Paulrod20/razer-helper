@@ -54,6 +54,29 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void Load_FromAnOlderFile_LeavesClosingGpuAppsOff_WithNoExtraNeverCloseNames()
+    {
+        WriteSettings("""{ "DisplayMode": "Auto", "AutoSwitchProfiles": false }""");
+
+        var settings = new SettingsService(_directory).Load();
+
+        Assert.False(settings.CloseGpuAppsOnUnplug);
+        Assert.Null(settings.NeverCloseApps);
+    }
+
+    [Fact]
+    public void Save_ThenLoad_KeepsTheGpuAppOptions()
+    {
+        var service = new SettingsService(_directory);
+
+        service.Save(new AppSettings(CloseGpuAppsOnUnplug: true, NeverCloseApps: ["blender", "gimp"]));
+        var settings = service.Load();
+
+        Assert.True(settings.CloseGpuAppsOnUnplug);
+        Assert.Equal(["blender", "gimp"], settings.NeverCloseApps);
+    }
+
+    [Fact]
     public void Save_ThenLoad_KeepsTurnedOffOptions()
     {
         var service = new SettingsService(_directory);
@@ -94,7 +117,7 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.Contains("\"Mode\": \"Custom\"", json);
         Assert.Contains("\"Cpu\": \"Medium\"", json);
         Assert.DoesNotContain("null", json);
-        Assert.DoesNotContain("Gpu", json);
+        Assert.DoesNotContain("\"Gpu\":", json); // The empty boost field, not any setting whose name contains "Gpu".
     }
 
     [Fact]

@@ -20,7 +20,14 @@ internal enum DgpuAppVerdict
 }
 
 /// <summary>One process holding the dedicated GPU, and what would happen to it.</summary>
-internal sealed record DgpuApp(int ProcessId, string Name, long DedicatedBytes, DgpuAppVerdict Verdict);
+internal sealed record DgpuApp(
+    int ProcessId,
+    string Name,
+    long DedicatedBytes,
+    DgpuAppVerdict Verdict,
+    // Kept so that, when it is time to close, the process is confirmed to be
+    // the same one that was scanned and not a newer program that reused the id.
+    DateTime? StartTime = null);
 
 /// <summary>Video memory a process holds on the dedicated GPU, as Windows reports it.</summary>
 internal sealed record GpuProcessUsage(int ProcessId, long DedicatedBytes);

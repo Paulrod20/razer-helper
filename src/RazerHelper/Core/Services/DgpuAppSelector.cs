@@ -20,7 +20,11 @@ internal static class DgpuAppSelector
         "applicationframehost", "systemsettings", "dllhost", "conhost", "audiodg", "ctfmon",
         "lockapp", "widgets", "widgetservice", "securityhealthsystray", "wudfhost",
         "igfxem", "igfxhk", "igfxext", "atieclxx", "atiesrxx",
-        "nvcontainer", "nvdisplay.container", "nvsettings", "nvspcaps64", "nvsphelper64", "nvwmi64", "nvcplui"
+        "nvcontainer", "nvdisplay.container", "nvsettings", "nvspcaps64", "nvsphelper64", "nvwmi64", "nvcplui",
+        // Never closed for you: closing a terminal ends what is running in it,
+        // and closing the Claude desktop app ends the session that may be
+        // working on your machine. Editors hold your unsaved work.
+        "claude", "windowsterminal", "wt", "openconsole", "powershell", "pwsh", "cmd", "devenv", "code", "cursor"
     };
 
     // Whole families, so a renamed or versioned helper is still covered.
@@ -44,7 +48,8 @@ internal static class DgpuAppSelector
         IEnumerable<GpuProcessUsage> usages,
         Func<int, RunningProcess?> lookup,
         int thisProcessId,
-        int thisSessionId)
+        int thisSessionId,
+        IReadOnlyCollection<string>? neverClose = null)
     {
         var apps = new Dictionary<int, DgpuApp>();
 
@@ -53,11 +58,11 @@ internal static class DgpuAppSelector
             if (lookup(usage.ProcessId) is not { } process)
                 continue;
 
-            var (owner, verdict) = ResolveOwner(process, lookup, thisProcessId, thisSessionId);
+            var (owner, verdict) = ResolveOwner(process, lookup, thisProcessId, thisSessionId, neverClose);
 
             apps[owner.ProcessId] = apps.TryGetValue(owner.ProcessId, out var existing)
                 ? existing with { DedicatedBytes = existing.DedicatedBytes + usage.DedicatedBytes }
-                : new DgpuApp(owner.ProcessId, owner.Name, usage.DedicatedBytes, verdict);
+                : new DgpuApp(owner.ProcessId, owner.Name, usage.DedicatedBytes, verdict, owner.StartTime);
         }
 
         return apps.Values.OrderByDescending(app => app.DedicatedBytes).ToList();
@@ -72,9 +77,10 @@ internal static class DgpuAppSelector
         RunningProcess process,
         Func<int, RunningProcess?> lookup,
         int thisProcessId,
-        int thisSessionId)
+        int thisSessionId,
+        IReadOnlyCollection<string>? neverClose = null)
     {
-        var verdict = Decide(process, thisProcessId, thisSessionId);
+        var verdict = Decide(process, thisProcessId, thisSessionId, neverClose);
 
         if (verdict != DgpuAppVerdict.NoWindow)
             return (process, verdict);
@@ -90,7 +96,7 @@ internal static class DgpuAppSelector
                 break;
             }
 
-            var parentVerdict = Decide(parent, thisProcessId, thisSessionId);
+            var parentVerdict = Decide(parent, thisProcessId, thisSessionId, neverClose);
 
             if (parentVerdict == DgpuAppVerdict.Close)
                 return (parent, DgpuAppVerdict.Close);
@@ -110,7 +116,11 @@ internal static class DgpuAppSelector
     private static bool StartedBefore(RunningProcess parent, RunningProcess child) =>
         parent.StartTime is { } parentStart && child.StartTime is { } childStart && parentStart <= childStart;
 
-    internal static DgpuAppVerdict Decide(RunningProcess process, int thisProcessId, int thisSessionId)
+    internal static DgpuAppVerdict Decide(
+        RunningProcess process,
+        int thisProcessId,
+        int thisSessionId,
+        IReadOnlyCollection<string>? neverClose = null)
     {
         // The order matters: the strongest reasons to leave something alone come first.
         if (process.ProcessId == thisProcessId)
@@ -119,19 +129,26 @@ internal static class DgpuAppSelector
         if (process.SessionId == 0 || process.SessionId != thisSessionId)
             return DgpuAppVerdict.OtherSession;
 
-        if (IsProtectedName(process.Name))
+        if (IsProtectedName(process.Name, neverClose))
             return DgpuAppVerdict.Protected;
 
         return process.HasWindow ? DgpuAppVerdict.Close : DgpuAppVerdict.NoWindow;
     }
 
-    internal static bool IsProtectedName(string name)
+    /// <summary>
+    /// True for anything that must never be closed: the built-in list, the
+    /// protected families, and the extra names the user chose to add.
+    /// </summary>
+    internal static bool IsProtectedName(string name, IReadOnlyCollection<string>? neverClose = null)
     {
-        // Names arrive without ".exe", but be forgiving if one does.
-        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-            name = name[..^4];
+        name = WithoutExeSuffix(name);
 
         return ProtectedNames.Contains(name) ||
-            ProtectedPrefixes.Any(prefix => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            ProtectedPrefixes.Any(prefix => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) ||
+            neverClose?.Any(extra => string.Equals(WithoutExeSuffix(extra.Trim()), name, StringComparison.OrdinalIgnoreCase)) == true;
     }
+
+    // Names arrive without ".exe", but be forgiving if one does, in either place.
+    private static string WithoutExeSuffix(string name) =>
+        name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name;
 }

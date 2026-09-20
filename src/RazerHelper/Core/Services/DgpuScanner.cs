@@ -8,14 +8,29 @@ namespace RazerHelper.Core.Services;
 /// What is on the dedicated GPU right now.
 /// <paramref name="ExternalDisplay"/> is null when Windows would not say; treat that as "connected".
 /// </summary>
-internal sealed record DgpuScanResult(bool GpuFound, bool? ExternalDisplay, IReadOnlyList<DgpuApp> Apps);
+internal sealed record DgpuScanResult(bool GpuFound, bool? ExternalDisplay, IReadOnlyList<DgpuApp> Apps)
+{
+    /// <summary>
+    /// Whether closing apps can help at all, and so may be done. Only when a
+    /// dedicated GPU exists and the laptop's own panel is the only display: an
+    /// external display is driven by that GPU, which then stays on whatever is
+    /// closed. Anything uncertain counts as "no". The preview and the closer
+    /// both use this one rule.
+    /// </summary>
+    public bool MayClose => GpuFound && ExternalDisplay == false;
+
+    /// <summary>The apps that would be asked to close: empty unless <see cref="MayClose"/>.</summary>
+    public IReadOnlyList<DgpuApp> Closable =>
+        MayClose ? Apps.Where(app => app.Verdict == DgpuAppVerdict.Close).ToList() : [];
+}
 
 /// <summary>Looks at what is using the dedicated GPU. Read-only: it never closes or changes anything.</summary>
 internal static class DgpuScanner
 {
-    public static Task<DgpuScanResult> ScanAsync() => Task.Run(Scan);
+    public static Task<DgpuScanResult> ScanAsync(IReadOnlyCollection<string>? neverClose = null) =>
+        Task.Run(() => Scan(neverClose));
 
-    internal static DgpuScanResult Scan()
+    internal static DgpuScanResult Scan(IReadOnlyCollection<string>? neverClose = null)
     {
         var adapters = DiscreteGpuReader.ReadDiscreteAdapters();
         var externalDisplay = DisplayTopology.HasExternalDisplay();
@@ -40,7 +55,7 @@ internal static class DgpuScanner
             return process;
         }
 
-        var apps = DgpuAppSelector.Classify(usages, Lookup, current.Id, current.SessionId);
+        var apps = DgpuAppSelector.Classify(usages, Lookup, current.Id, current.SessionId, neverClose);
 
         return new DgpuScanResult(true, externalDisplay, apps);
     }

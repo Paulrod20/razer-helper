@@ -20,8 +20,8 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _startAtLoginBox;
     private readonly CheckBox _autoSwitchBox;
     private readonly CheckBox _hideWhenClickedAwayBox;
+    private readonly CheckBox _closeGpuAppsBox;
     private readonly Label _errorLabel;
-    private readonly LinkLabel _previewLink;
 
     private bool _isLoading = true;
 
@@ -63,6 +63,7 @@ internal sealed class SettingsForm : Form
         _startAtLoginBox = AddOption(layout, "Start at login", "Open RazerHelper in the tray when you sign in to Windows.");
         _autoSwitchBox = AddOption(layout, "Switch profile when plugging in or unplugging", "Off keeps whatever mode you are in.");
         _hideWhenClickedAwayBox = AddOption(layout, "Hide when clicking away", "Off keeps the window open until you click the tray icon.");
+        _closeGpuAppsBox = AddOption(layout, "Close apps using the dedicated GPU when unplugged", "Saves battery. Asks first, and does nothing while an external display is connected. Use Free up GPU in the footer any time.");
 
         _errorLabel = new Label
         {
@@ -75,8 +76,6 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(_errorLabel);
 
         layout.Controls.Add(CreateDivider());
-        _previewLink = CreateLink("Show apps using the dedicated GPU", () => _ = ShowGpuPreviewAsync());
-        layout.Controls.Add(_previewLink);
         layout.Controls.Add(CreateLink("Razer drivers and support", ExternalLinks.OpenRazerDrivers));
         layout.Controls.Add(CreateLink("Open log folder", ExternalLinks.OpenLogFolder));
 
@@ -93,11 +92,13 @@ internal sealed class SettingsForm : Form
 
         _autoSwitchBox.Checked = settings.AutoSwitchProfiles;
         _hideWhenClickedAwayBox.Checked = settings.HideWhenClickedAway;
+        _closeGpuAppsBox.Checked = settings.CloseGpuAppsOnUnplug;
         _startAtLoginBox.Checked = ReadStartAtLogin();
 
         _startAtLoginBox.CheckedChanged += StartAtLoginBox_CheckedChanged;
         _autoSwitchBox.CheckedChanged += (_, _) => AutoSwitchProfilesChanged?.Invoke(this, _autoSwitchBox.Checked);
         _hideWhenClickedAwayBox.CheckedChanged += (_, _) => HideWhenClickedAwayChanged?.Invoke(this, _hideWhenClickedAwayBox.Checked);
+        _closeGpuAppsBox.CheckedChanged += (_, _) => CloseGpuAppsOnUnplugChanged?.Invoke(this, _closeGpuAppsBox.Checked);
 
         _isLoading = false;
     }
@@ -105,6 +106,8 @@ internal sealed class SettingsForm : Form
     public event EventHandler<bool>? AutoSwitchProfilesChanged;
 
     public event EventHandler<bool>? HideWhenClickedAwayChanged;
+
+    public event EventHandler<bool>? CloseGpuAppsOnUnplugChanged;
 
     private bool ReadStartAtLogin()
     {
@@ -143,38 +146,6 @@ internal sealed class SettingsForm : Form
 
             _errorLabel.Text = "Could not change Start at login.";
             _errorLabel.Visible = true;
-        }
-    }
-
-    // A look only: nothing is closed or changed. It shows what the dedicated
-    // GPU is being used for, and which of those apps the app would ask to close.
-    private async Task ShowGpuPreviewAsync()
-    {
-        if (!_previewLink.Enabled)
-            return;
-
-        _previewLink.Enabled = false;
-
-        try
-        {
-            var scan = await DgpuScanner.ScanAsync();
-
-            MessageBox.Show(
-                this,
-                DgpuPreviewText.Build(scan),
-                "Apps using the dedicated GPU",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-        }
-        catch (Exception exception)
-        {
-            AppLog.Error("Could not scan the dedicated GPU.", exception);
-            _errorLabel.Text = "Could not check the dedicated GPU.";
-            _errorLabel.Visible = true;
-        }
-        finally
-        {
-            _previewLink.Enabled = true;
         }
     }
 

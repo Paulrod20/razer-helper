@@ -228,3 +228,60 @@ public class DgpuAppSelectorTests
         Assert.Equal("msedge", Assert.Single(apps).Name);
     }
 }
+
+public class DgpuAppSelectorNeverCloseTests
+{
+    private static readonly RunningProcess Blender = new(200, "blender", 2, HasWindow: true);
+
+    [Theory]
+    [InlineData("claude")]
+    [InlineData("Claude")]
+    [InlineData("WindowsTerminal")]
+    [InlineData("pwsh")]
+    [InlineData("cmd")]
+    [InlineData("devenv")]
+    [InlineData("Code")]
+    [InlineData("Cursor")]
+    public void TerminalsEditorsAndTheClaudeApp_AreProtectedByDefault(string name) =>
+        Assert.Equal(DgpuAppVerdict.Protected, DgpuAppSelector.Decide(new RunningProcess(200, name, 2, true), 100, 2));
+
+    [Fact]
+    public void AProgramTheUserAddedToTheirList_IsProtected() =>
+        Assert.Equal(DgpuAppVerdict.Protected, DgpuAppSelector.Decide(Blender, 100, 2, neverClose: ["blender"]));
+
+    [Theory]
+    [InlineData("BLENDER")]
+    [InlineData("blender.exe")]
+    [InlineData("  blender  ")]
+    public void TheUsersList_IgnoresCaseSpacesAndExeSuffix(string entry) =>
+        Assert.Equal(DgpuAppVerdict.Protected, DgpuAppSelector.Decide(Blender, 100, 2, neverClose: [entry]));
+
+    [Fact]
+    public void OtherProgramsStayClosable_WhenTheUserListsADifferentOne() =>
+        Assert.Equal(DgpuAppVerdict.Close, DgpuAppSelector.Decide(Blender, 100, 2, neverClose: ["gimp"]));
+
+    [Fact]
+    public void TheUsersList_AppliesThroughClassify_AndTheHelperTrace()
+    {
+        var main = new RunningProcess(300, "blender", 2, true, 1, new DateTime(2026, 1, 1, 9, 0, 0));
+        var helper = new RunningProcess(301, "blender", 2, false, 300, new DateTime(2026, 1, 1, 9, 0, 5));
+        var byId = new[] { main, helper }.ToDictionary(p => p.ProcessId);
+
+        var apps = DgpuAppSelector.Classify(
+            [new GpuProcessUsage(301, 1)], pid => byId.GetValueOrDefault(pid), 100, 2, neverClose: ["blender"]);
+
+        Assert.NotEqual(DgpuAppVerdict.Close, Assert.Single(apps).Verdict);
+    }
+
+    [Fact]
+    public void TheOwnersStartTime_IsCarriedForTheCloserToCheck()
+    {
+        var started = new DateTime(2026, 1, 1, 9, 0, 0);
+        var main = new RunningProcess(300, "blender", 2, true, 1, started);
+        var byId = new[] { main }.ToDictionary(p => p.ProcessId);
+
+        var apps = DgpuAppSelector.Classify([new GpuProcessUsage(300, 1)], pid => byId.GetValueOrDefault(pid), 100, 2);
+
+        Assert.Equal(started, Assert.Single(apps).StartTime);
+    }
+}
