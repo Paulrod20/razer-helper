@@ -44,7 +44,7 @@ internal static class UiControls
             {
                 AutoSize = true,
                 Dock = DockStyle.Right,
-                Font = CreateDesignFont("Segoe UI", 9.5F),
+                Font = GetDesignFont("Segoe UI", 9.5F),
                 ForeColor = Color.Silver,
                 Text = detail,
                 TextAlign = ContentAlignment.MiddleRight
@@ -58,7 +58,7 @@ internal static class UiControls
     {
         AutoSize = true,
         Dock = DockStyle.Left,
-        Font = CreateDesignFont("Segoe UI", 10F, FontStyle.Bold),
+        Font = GetDesignFont("Segoe UI", 10F, FontStyle.Bold),
         ForeColor = Color.White,
         Text = text,
         TextAlign = ContentAlignment.MiddleLeft
@@ -130,7 +130,7 @@ internal static class UiControls
             Cursor = Cursors.Hand,
             Dock = DockStyle.Fill,
             FlatStyle = FlatStyle.Flat,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
+            Font = GetDesignFont("Segoe UI", 9.5F),
             ForeColor = Color.White,
             Margin = new Padding(4),
             Text = text,

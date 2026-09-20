@@ -46,7 +46,7 @@ internal sealed class BatterySection : SectionPanel
         {
             AutoSize = true,
             Dock = DockStyle.None,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
+            Font = GetDesignFont("Segoe UI", 9.5F),
             ForeColor = Color.Silver,
             Text = "Charge: ",
             TextAlign = ContentAlignment.MiddleRight
@@ -56,7 +56,7 @@ internal sealed class BatterySection : SectionPanel
         {
             AutoSize = true,
             Dock = DockStyle.None,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
+            Font = GetDesignFont("Segoe UI", 9.5F),
             ForeColor = RazerGreen,
             Margin = new Padding(6, 0, 0, 0),
             Text = $"{initialLimit}%",

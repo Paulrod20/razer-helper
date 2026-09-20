@@ -36,7 +36,7 @@ internal sealed class DisplaySection : SectionPanel
         {
             AutoSize = true,
             Dock = DockStyle.Right,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
+            Font = GetDesignFont("Segoe UI", 9.5F),
             ForeColor = Color.Silver,
             Text = "Current: -- Hz",
             TextAlign = ContentAlignment.MiddleRight

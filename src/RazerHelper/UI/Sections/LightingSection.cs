@@ -210,7 +210,7 @@ internal sealed class LightingSection : SectionPanel
             {
                 AutoSize = false,
                 Dock = DockStyle.Fill,
-                Font = CreateDesignFont("Segoe UI", 9.5F),
+                Font = GetDesignFont("Segoe UI", 9.5F),
                 ForeColor = Color.Silver,
                 Margin = Padding.Empty,
                 Text = "--",
@@ -249,7 +249,7 @@ internal sealed class LightingSection : SectionPanel
             {
                 AutoSize = false,
                 Dock = DockStyle.Fill,
-                Font = CreateDesignFont("Segoe UI", 9.5F),
+                Font = GetDesignFont("Segoe UI", 9.5F),
                 ForeColor = Color.Silver,
                 Margin = new Padding(4, 0, 0, 0),
                 Text = _name,

@@ -34,7 +34,7 @@ internal sealed class SettingsForm : Form
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
         BackColor = BackgroundColor;
         ForeColor = Color.White;
-        Font = CreateDesignFont("Segoe UI", 9F);
+        Font = GetDesignFont("Segoe UI", 9F);
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
@@ -54,7 +54,7 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(new Label
         {
             AutoSize = true,
-            Font = CreateDesignFont("Segoe UI", 12F, FontStyle.Bold),
+            Font = GetDesignFont("Segoe UI", 12F, FontStyle.Bold),
             ForeColor = RazerGreen,
             Margin = new Padding(0, 0, 0, 10),
             Text = "Settings"
@@ -183,7 +183,7 @@ internal sealed class SettingsForm : Form
         {
             AutoSize = true,
             Cursor = Cursors.Hand,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
+            Font = GetDesignFont("Segoe UI", 9.5F),
             ForeColor = Color.White,
             Margin = new Padding(0, 4, 0, 0),
             Text = text
@@ -193,7 +193,7 @@ internal sealed class SettingsForm : Form
         layout.Controls.Add(new Label
         {
             AutoSize = true,
-            Font = CreateDesignFont("Segoe UI", 8F),
+            Font = GetDesignFont("Segoe UI", 8F),
             ForeColor = SubtleTextColor,
             Margin = new Padding(HintIndent, 0, 0, 6),
             MaximumSize = new Size(ContentWidth - HintIndent, 0),
@@ -217,7 +217,7 @@ internal sealed class SettingsForm : Form
         {
             ActiveLinkColor = Color.White,
             AutoSize = true,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
+            Font = GetDesignFont("Segoe UI", 9.5F),
             LinkBehavior = LinkBehavior.HoverUnderline,
             LinkColor = color ?? RazerGreen,
             Margin = new Padding(0, 2, 0, 2),

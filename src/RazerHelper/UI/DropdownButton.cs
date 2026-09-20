@@ -16,6 +16,8 @@ namespace RazerHelper.UI;
 internal sealed class DropdownButton : Button
 {
     private static readonly Color HoverColor = Color.FromArgb(70, 70, 70);
+    private static readonly SolidBrush ArrowBrush = new(Color.Silver);
+    private static readonly SolidBrush DisabledArrowBrush = new(SystemColors.GrayText);
 
     private readonly string[] _items;
     private readonly string _placeholder;
@@ -30,7 +32,7 @@ internal sealed class DropdownButton : Button
         BackColor = ButtonColor;
         Cursor = Cursors.Hand;
         FlatStyle = FlatStyle.Flat;
-        Font = CreateDesignFont("Segoe UI", 9.5F);
+        Font = GetDesignFont("Segoe UI", 9.5F);
         ForeColor = Color.White;
         Padding = new Padding(8, 0, 22, 0);
         TextAlign = ContentAlignment.MiddleLeft;
@@ -88,12 +90,11 @@ internal sealed class DropdownButton : Button
     {
         base.OnPaint(pevent);
 
-        // The arrow, drawn as a small triangle so it follows the text color.
+        // The arrow, drawn as a small triangle.
         var centerX = Width - 12;
         var centerY = Height / 2;
-        using var brush = new SolidBrush(Enabled ? Color.Silver : SystemColors.GrayText);
 
-        pevent.Graphics.FillPolygon(brush,
+        pevent.Graphics.FillPolygon(Enabled ? ArrowBrush : DisabledArrowBrush,
         [
             new Point(centerX - 4, centerY - 2),
             new Point(centerX + 4, centerY - 2),

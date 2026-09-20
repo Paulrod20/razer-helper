@@ -82,7 +82,7 @@ internal sealed class CustomBoostRow : TableLayoutPanel
         {
             AutoSize = false,
             Dock = DockStyle.Top,
-            Font = CreateDesignFont("Segoe UI", 9.5F, FontStyle.Bold),
+            Font = GetDesignFont("Segoe UI", 9.5F, FontStyle.Bold),
             ForeColor = Color.White,
             Height = 22,
             Padding = new Padding(4, 0, 0, 0), // Line up with the section titles.

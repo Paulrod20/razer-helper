@@ -383,7 +383,7 @@ internal sealed class PerformanceSection : SectionPanel
     private static Label CreateHeaderValueLabel() => new()
     {
         AutoSize = true,
-        Font = CreateDesignFont("Segoe UI", 9.5F),
+        Font = GetDesignFont("Segoe UI", 9.5F),
         ForeColor = Color.Silver,
         Margin = Padding.Empty,
         TextAlign = ContentAlignment.MiddleRight

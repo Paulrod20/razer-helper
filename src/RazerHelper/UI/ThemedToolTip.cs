@@ -9,8 +9,10 @@ namespace RazerHelper.UI;
 /// </summary>
 internal sealed class ThemedToolTip : ToolTip
 {
-    private static readonly Font TipFont = CreateDesignFont("Segoe UI", 8F);
+    private static readonly Font TipFont = GetDesignFont("Segoe UI", 8F);
     private static readonly Padding TextPadding = new(7, 3, 7, 3);
+    private static readonly SolidBrush BackgroundBrush = new(ButtonColor);
+    private static readonly Pen BorderPen = new(BorderColor);
 
     public ThemedToolTip()
     {
@@ -36,11 +38,8 @@ internal sealed class ThemedToolTip : ToolTip
 
     private void ThemedToolTip_Draw(object? sender, DrawToolTipEventArgs e)
     {
-        using var background = new SolidBrush(ButtonColor);
-        using var border = new Pen(BorderColor);
-
-        e.Graphics.FillRectangle(background, e.Bounds);
-        e.Graphics.DrawRectangle(border, 0, 0, e.Bounds.Width - 1, e.Bounds.Height - 1);
+        e.Graphics.FillRectangle(BackgroundBrush, e.Bounds);
+        e.Graphics.DrawRectangle(BorderPen, 0, 0, e.Bounds.Width - 1, e.Bounds.Height - 1);
 
         // A short message reads best centered; a list of lines reads best from the left.
         var alignment = e.ToolTipText?.Contains('\n') == true ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter;

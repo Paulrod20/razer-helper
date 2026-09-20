@@ -202,7 +202,7 @@ public sealed class TrayPopupForm : Form
     {
         BackColor = BackgroundColor;
         ForeColor = Color.White;
-        Font = CreateDesignFont("Segoe UI", 9F);
+        Font = GetDesignFont("Segoe UI", 9F);
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         // Wide enough that the longest button label ("Medium" in the Custom row)
@@ -302,7 +302,7 @@ public sealed class TrayPopupForm : Form
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            Font = CreateDesignFont("Segoe UI", 12F, FontStyle.Bold),
+            Font = GetDesignFont("Segoe UI", 12F, FontStyle.Bold),
             ForeColor = RazerGreen,
             Text = "RazerHelper",
             TextAlign = ContentAlignment.MiddleLeft
@@ -419,7 +419,7 @@ public sealed class TrayPopupForm : Form
         AutoEllipsis = true,
         AutoSize = false,
         Dock = DockStyle.Fill,
-        Font = CreateDesignFont("Segoe UI", 8.5F),
+        Font = GetDesignFont("Segoe UI", 8.5F),
         ForeColor = SubtleTextColor,
         Margin = new Padding(12, 0, 0, 0),
         Text = ModelText,

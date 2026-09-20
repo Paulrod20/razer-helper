@@ -256,7 +256,7 @@ internal sealed class FanSection : SectionPanel
     {
         AutoSize = false,
         Dock = DockStyle.Fill,
-        Font = CreateDesignFont("Segoe UI", 9.5F),
+        Font = GetDesignFont("Segoe UI", 9.5F),
         ForeColor = Color.Silver,
         Margin = new Padding(4, 0, 0, 0), // Same 4px inset as the buttons below.
         Text = text,

@@ -22,12 +22,24 @@ internal sealed class ThemedSlider : Control
 
     private static readonly Color TrackColor = Color.FromArgb(70, 70, 70);
     private static readonly Color DisabledColor = Color.FromArgb(100, 100, 100);
-    private static readonly Font LabelFont = CreateDesignFont("Segoe UI", 8.5F);
+    private static readonly Font LabelFont = GetDesignFont("Segoe UI", 8.5F);
+
+    // Drawing objects shared by every slider and reused on every repaint. A
+    // slider repaints on each mouse move while dragging, so building (and, for
+    // the format, leaking) these each time was steady garbage for nothing.
+    private static readonly SolidBrush TrackBrush = new(TrackColor);
+    private static readonly SolidBrush AccentBrush = new(RazerGreen);
+    private static readonly SolidBrush DisabledBrush = new(DisabledColor);
+    private static readonly SolidBrush LabelBrush = new(Color.Silver);
+    private static readonly SolidBrush SelectedLabelBrush = new(Color.White);
+    private static readonly Pen FocusRingPen = new(Color.White, 2);
+    private static readonly StringFormat CenteredFormat = new() { Alignment = StringAlignment.Center };
 
     private readonly int _minimum;
     private readonly int _maximum;
     private readonly int _step;
     private readonly bool _showLabels;
+    private readonly string[] _stepLabels;
 
     private int _value;
     private bool _dragging;
@@ -44,6 +56,11 @@ internal sealed class ThemedSlider : Control
         _step = step;
         _showLabels = showLabels;
         _value = minimum;
+
+        // The text of every step, worked out once rather than on every paint.
+        _stepLabels = showLabels
+            ? [.. Enumerable.Range(0, (maximum - minimum) / step + 1).Select(index => (minimum + index * step).ToString())]
+            : [];
 
         SetStyle(
             ControlStyles.UserPaint |
@@ -175,49 +192,41 @@ internal sealed class ThemedSlider : Control
         graphics.Clear(BackColor);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        var accent = Enabled ? RazerGreen : DisabledColor;
-        var textColor = Enabled ? Color.Silver : DisabledColor;
+        var accent = Enabled ? AccentBrush : DisabledBrush;
         var thumbX = XAt(_value);
 
         // Track, then the filled part up to the thumb.
-        using (var trackBrush = new SolidBrush(TrackColor))
-        using (var fillBrush = new SolidBrush(accent))
-        {
-            var track = new Rectangle(XAt(_minimum), TrackY - TrackHeight / 2, TrackWidth, TrackHeight);
-            graphics.FillRectangle(trackBrush, track);
-            graphics.FillRectangle(fillBrush, track.Left, track.Top, thumbX - track.Left, track.Height);
-        }
+        var track = new Rectangle(XAt(_minimum), TrackY - TrackHeight / 2, TrackWidth, TrackHeight);
+        graphics.FillRectangle(TrackBrush, track);
+        graphics.FillRectangle(accent, track.Left, track.Top, thumbX - track.Left, track.Height);
 
         // One label per step, the selected one brighter.
         if (_showLabels)
         {
-            using var labelBrush = new SolidBrush(textColor);
-            using var selectedBrush = new SolidBrush(Enabled ? Color.White : DisabledColor);
-            var format = new StringFormat { Alignment = StringAlignment.Center };
+            var normal = Enabled ? LabelBrush : DisabledBrush;
+            var selected = Enabled ? SelectedLabelBrush : DisabledBrush;
 
-            for (var step = _minimum; step <= _maximum; step += _step)
+            for (var index = 0; index < _stepLabels.Length; index++)
             {
+                var step = _minimum + index * _step;
+
                 graphics.DrawString(
-                    step.ToString(),
+                    _stepLabels[index],
                     LabelFont,
-                    step == _value ? selectedBrush : labelBrush,
+                    step == _value ? selected : normal,
                     XAt(step),
                     LabelTop,
-                    format);
+                    CenteredFormat);
             }
         }
 
         // Thumb, with a ring when the keyboard has focus.
         var thumb = new Rectangle(thumbX - ThumbRadius, TrackY - ThumbRadius, ThumbRadius * 2, ThumbRadius * 2);
 
-        using (var thumbBrush = new SolidBrush(accent))
-        using (var ringPen = new Pen(Color.White, 2))
-        {
-            graphics.FillEllipse(thumbBrush, thumb);
+        graphics.FillEllipse(accent, thumb);
 
-            if (Focused && Enabled)
-                graphics.DrawEllipse(ringPen, thumb);
-        }
+        if (Focused && Enabled)
+            graphics.DrawEllipse(FocusRingPen, thumb);
     }
 
     // With labels the track sits near the top; without them it is centered.

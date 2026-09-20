@@ -52,7 +52,7 @@ internal sealed class ServicesSection : SectionPanel
         _countLabel = new Label
         {
             Dock = DockStyle.Fill,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
+            Font = GetDesignFont("Segoe UI", 9.5F),
             ForeColor = Color.Silver,
             Text = "Razer Software Running: --",
             TextAlign = ContentAlignment.MiddleLeft
@@ -94,7 +94,7 @@ internal sealed class ServicesSection : SectionPanel
         var note = new Label
         {
             Dock = DockStyle.Bottom,
-            Font = CreateDesignFont("Segoe UI", 8F),
+            Font = GetDesignFont("Segoe UI", 8F),
             ForeColor = SubtleTextColor,
             Height = 20,
             Padding = new Padding(4, 0, 0, 0),

@@ -14,13 +14,33 @@ internal static class UiTheme
     /// <summary>Quiet secondary text: the model name, hints and notes.</summary>
     public static readonly Color SubtleTextColor = Color.FromArgb(145, 145, 145);
 
-    // The popup uses AutoScaleMode.None, so fonts are sized against the system
-    // DPI here to keep the design surface stable across display scales.
-    public static Font CreateDesignFont(
+    // The app only ever uses a handful of distinct fonts, and controls never
+    // dispose a font they are handed, so each look is created once and shared.
+    private static readonly Dictionary<(string Family, float Size, FontStyle Style), Font> DesignFonts = [];
+
+    /// <summary>
+    /// The shared font for this look, created the first time it is asked for.
+    /// Never dispose it: every control that uses it shares the same object.
+    /// </summary>
+    /// <remarks>
+    /// The popup uses AutoScaleMode.None, so fonts are sized against the system
+    /// DPI here to keep the design surface stable across display scales.
+    /// </remarks>
+    public static Font GetDesignFont(
         string familyName,
         float pointSize,
-        FontStyle style = FontStyle.Regular) =>
-        new(familyName, pointSize / DpiScale, style, GraphicsUnit.Point);
+        FontStyle style = FontStyle.Regular)
+    {
+        lock (DesignFonts)
+        {
+            var key = (familyName, pointSize, style);
+
+            if (!DesignFonts.TryGetValue(key, out var font))
+                DesignFonts[key] = font = new Font(familyName, pointSize / DpiScale, style, GraphicsUnit.Point);
+
+            return font;
+        }
+    }
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForSystem();

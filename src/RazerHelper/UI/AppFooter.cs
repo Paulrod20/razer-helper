@@ -28,7 +28,7 @@ internal sealed class AppFooter : TableLayoutPanel
         {
             AutoSize = false,
             Dock = DockStyle.Fill,
-            Font = CreateDesignFont("Segoe UI", 8F),
+            Font = GetDesignFont("Segoe UI", 8F),
             ForeColor = SubtleTextColor,
             Margin = Padding.Empty,
             Text = $"RazerHelper {AppVersion.Current}",
@@ -53,7 +53,7 @@ internal sealed class AppFooter : TableLayoutPanel
         ActiveLinkColor = Color.White,
         AutoSize = true,
         Dock = DockStyle.Fill,
-        Font = CreateDesignFont("Segoe UI", 8.5F),
+        Font = GetDesignFont("Segoe UI", 8.5F),
         LinkBehavior = LinkBehavior.HoverUnderline,
         LinkColor = Color.Silver,
         Margin = margin,

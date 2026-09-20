@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
-using HidSharp;
 using Microsoft.Win32.SafeHandles;
 
 namespace RazerHelper.Core.Hardware;
@@ -12,9 +11,6 @@ internal sealed class RazerHidTransport : IRazerTransport, IDisposable
     private const ushort GetDeviceModeCommand = 0x0084;
     private const int MaximumAttempts = 5;
     private const int ConnectionProbeAttempts = 3;
-    private const uint FileShareRead = 0x00000001;
-    private const uint FileShareWrite = 0x00000002;
-    private const uint OpenExisting = 3;
 
     // All services share one physical EC command channel. Serializing
     // process-wide keeps fan reads and setting writes from consuming each
@@ -49,9 +45,7 @@ internal sealed class RazerHidTransport : IRazerTransport, IDisposable
     }
 
     public static bool IsSupportedDevicePresent() =>
-        DeviceList.Local
-            .GetHidDevices(RazerVendorId, Blade16_2023ProductId)
-            .Any();
+        HidDeviceLocator.FindPaths(RazerVendorId, Blade16_2023ProductId).Count > 0;
 
     public void Dispose()
     {
@@ -70,32 +64,22 @@ internal sealed class RazerHidTransport : IRazerTransport, IDisposable
         if (_deviceHandle is not null)
             return;
 
-        var foundAnyDevice = false;
+        var paths = HidDeviceLocator.FindPaths(RazerVendorId, Blade16_2023ProductId);
+        var foundAnyDevice = paths.Count > 0;
 
-        foreach (var device in DeviceList.Local.GetHidDevices(
-            RazerVendorId,
-            Blade16_2023ProductId))
+        foreach (var path in paths)
         {
-            foundAnyDevice = true;
-
-            var reportLength = device.GetMaxFeatureReportLength();
-
-            if (reportLength < RazerHidPacket.MinimumFeatureReportLength)
-                continue;
-
             // Windows blocks ordinary read/write handles to some system HID
             // interfaces. A zero-access handle can still exchange feature
             // reports, which is the same fallback used by hidapi on Windows.
-            var candidate = CreateFile(
-                device.DevicePath,
-                desiredAccess: 0,
-                shareMode: FileShareRead | FileShareWrite,
-                securityAttributes: IntPtr.Zero,
-                creationDisposition: OpenExisting,
-                flagsAndAttributes: 0,
-                templateFile: IntPtr.Zero);
+            var candidate = HidDeviceLocator.OpenForFeatureReports(path);
 
-            if (candidate.IsInvalid)
+            if (candidate is null)
+                continue;
+
+            var reportLength = HidDeviceLocator.GetFeatureReportLength(candidate) ?? 0;
+
+            if (reportLength < RazerHidPacket.MinimumFeatureReportLength)
             {
                 candidate.Dispose();
                 continue;
@@ -187,16 +171,6 @@ internal sealed class RazerHidTransport : IRazerTransport, IDisposable
             error,
             $"Unable to {operation} a Razer HID feature report (Windows error {error}).");
     }
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern SafeFileHandle CreateFile(
-        string fileName,
-        uint desiredAccess,
-        uint shareMode,
-        IntPtr securityAttributes,
-        uint creationDisposition,
-        uint flagsAndAttributes,
-        IntPtr templateFile);
 
     [DllImport("hid.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

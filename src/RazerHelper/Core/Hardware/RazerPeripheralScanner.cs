@@ -1,5 +1,3 @@
-using HidSharp;
-
 namespace RazerHelper.Core.Hardware;
 
 /// <summary>Finds other Razer hardware (mice, keyboards, headsets) plugged in alongside the laptop.</summary>
@@ -17,12 +15,13 @@ internal static class RazerPeripheralScanner
 
         try
         {
-            foreach (var device in DeviceList.Local.GetHidDevices(RazerVendorId))
+            foreach (var path in HidDeviceLocator.FindPaths(RazerVendorId))
             {
-                if (device.ProductID == LaptopProductId)
+                // The laptop's own control device is not a peripheral.
+                if (HidDeviceLocator.Matches(path, RazerVendorId, LaptopProductId))
                     continue;
 
-                var name = TryGetName(device);
+                var name = HidDeviceLocator.GetProductName(path);
 
                 if (!string.IsNullOrWhiteSpace(name))
                     names.Add(name);
@@ -34,17 +33,5 @@ internal static class RazerPeripheralScanner
         }
 
         return names.ToList();
-    }
-
-    private static string? TryGetName(HidDevice device)
-    {
-        try
-        {
-            return device.GetProductName();
-        }
-        catch (Exception)
-        {
-            return null;
-        }
     }
 }
