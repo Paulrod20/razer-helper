@@ -21,10 +21,17 @@ internal sealed class LightingService(IRazerTransport transport)
 
     // Effect ids of the extended matrix effect command.
     private const byte EffectOff = 0x00;
+    private const byte EffectStatic = 0x01;
     private const byte EffectBreathing = 0x02;
     private const byte EffectSpectrum = 0x03;
     private const byte EffectWave = 0x04;
     private const byte WaveDirection = 0x01;
+
+    // A static effect carries a color, laid out as OpenRazer sends it:
+    // [store, led, 1, 0, 0, 1, red, green, blue]. In Normal mode the laptop
+    // shows Razer green whatever is sent (checked on a Blade 16 with five other
+    // colors), so Razer green is sent: what is asked for is what is shown.
+    private static readonly byte[] StaticGreen = [StoreInLaptop, KeyboardLed, EffectStatic, 0x00, 0x00, 0x01, 0x44, 0xD6, 0x2C];
 
     // Logo mode values.
     private const byte LogoSteady = 0x00;
@@ -51,6 +58,7 @@ internal sealed class LightingService(IRazerTransport transport)
         byte[] arguments = effect switch
         {
             KeyboardEffect.Off => [StoreInLaptop, KeyboardLed, EffectOff],
+            KeyboardEffect.StaticGreen => StaticGreen,
             KeyboardEffect.Spectrum => [StoreInLaptop, KeyboardLed, EffectSpectrum],
             KeyboardEffect.Breathing => [StoreInLaptop, KeyboardLed, EffectBreathing],
             KeyboardEffect.Wave => [StoreInLaptop, KeyboardLed, EffectWave, WaveDirection],
@@ -103,11 +111,12 @@ internal sealed class LightingService(IRazerTransport transport)
         if (RazerHidPacket.GetArgument(response, 1) != KeyboardLed)
             throw new InvalidOperationException("The keyboard effect response was for a different light.");
 
-        // Effects set by other software (a static color, reactive, starlight)
-        // are not ones this app offers: report "unknown", never a wrong one.
+        // Effects set by other software (reactive, starlight) are not ones this
+        // app offers: report "unknown", never a wrong one.
         return RazerHidPacket.GetArgument(response, 2) switch
         {
             EffectOff => KeyboardEffect.Off,
+            EffectStatic => KeyboardEffect.StaticGreen,
             EffectBreathing => KeyboardEffect.Breathing,
             EffectSpectrum => KeyboardEffect.Spectrum,
             EffectWave => KeyboardEffect.Wave,

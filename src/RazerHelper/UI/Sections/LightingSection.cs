@@ -26,7 +26,7 @@ internal sealed class LightingSection : SectionPanel
     public const int RowHeight = HeaderHeight + 2 * LineHeight + BottomGap;
 
     private static readonly KeyboardEffect[] KeyboardEffects =
-        [KeyboardEffect.Off, KeyboardEffect.Spectrum, KeyboardEffect.Wave, KeyboardEffect.Breathing];
+        [KeyboardEffect.Off, KeyboardEffect.StaticGreen, KeyboardEffect.Spectrum, KeyboardEffect.Wave, KeyboardEffect.Breathing];
 
     private static readonly LogoMode[] LogoModes = [LogoMode.Off, LogoMode.On, LogoMode.Breathing];
 
@@ -40,8 +40,8 @@ internal sealed class LightingSection : SectionPanel
     {
         _lightingService = lightingService;
 
-        _keyboard = new Line("Keyboard", KeyboardEffects.Select(effect => effect.ToString()));
-        _logo = new Line("Logo", LogoModes.Select(mode => mode == LogoMode.On ? "On" : mode.ToString()));
+        _keyboard = new Line("Keyboard", KeyboardEffects.Select(Describe));
+        _logo = new Line("Logo", LogoModes.Select(Describe));
 
         _keyboard.Effect.SelectionChanged += async (_, _) =>
             await ApplyAsync(
@@ -146,6 +146,11 @@ internal sealed class LightingSection : SectionPanel
             EndBusy();
         });
     }
+
+    private static string Describe(KeyboardEffect effect) =>
+        effect == KeyboardEffect.StaticGreen ? "Static green" : effect.ToString();
+
+    private static string Describe(LogoMode mode) => mode == LogoMode.On ? "On" : mode.ToString();
 
     // A failed read is logged and shown as "unknown", never as an old value.
     private async Task<LightingState> ReadStateOrUnknownAsync(string logMessage)

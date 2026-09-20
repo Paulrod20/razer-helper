@@ -2,13 +2,18 @@ namespace RazerHelper.Core.Models;
 
 /// <summary>
 /// Keyboard backlight effects the laptop runs by itself in Normal device mode.
-/// Solid colors are deliberately not here: on the Blade 16 the laptop ignores a
-/// chosen color unless it is put in "driver mode", which switches off the Fn
-/// media keys (volume, screen and keyboard brightness).
+/// A choice of solid colors is deliberately not here: on the Blade 16 the laptop
+/// ignores a chosen color unless it is put in "driver mode", which switches off
+/// the Fn media keys (volume, screen and keyboard brightness). In Normal mode a
+/// static effect always shows Razer green, so that is what <see cref="StaticGreen"/> is.
 /// </summary>
 internal enum KeyboardEffect
 {
     Off,
+
+    /// <summary>One steady color: Razer green.</summary>
+    StaticGreen,
+
     Spectrum,
     Wave,
     Breathing

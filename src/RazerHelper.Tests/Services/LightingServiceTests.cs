@@ -18,6 +18,7 @@ public class LightingServiceTests
 
     [Theory]
     [InlineData((int)KeyboardEffect.Off, "010500")]
+    [InlineData((int)KeyboardEffect.StaticGreen, "01050100000144D62C")]
     [InlineData((int)KeyboardEffect.Spectrum, "010503")]
     [InlineData((int)KeyboardEffect.Breathing, "010502")]
     [InlineData((int)KeyboardEffect.Wave, "01050401")]
@@ -165,10 +166,19 @@ public class LightingServiceTests
         Assert.Equal(LogoMode.Off, service.ReadState().Logo);
     }
 
+    [Fact]
+    public void AStaticEffect_IsShownAsStaticGreen()
+    {
+        var (service, ec) = Create();
+        ec.KeyboardEffectId = 1;
+
+        Assert.Equal(KeyboardEffect.StaticGreen, service.ReadState().Keyboard);
+    }
+
     [Theory]
-    [InlineData(1)] // Static colour.
     [InlineData(5)] // Reactive.
     [InlineData(7)] // Starlight.
+    [InlineData(10)] // Wheel, which the Blade does not support.
     public void AnEffectSetByOtherSoftware_IsReportedAsUnknown_NotAsSomethingElse(byte effectId)
     {
         var (service, ec) = Create();
