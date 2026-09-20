@@ -18,6 +18,13 @@ internal static class RazerCommands
     public const ushort GetBoost = 0x0D87;
     public const ushort GetActualFanRpm = 0x0D88;
 
+    // Class 0x0D: temperatures. Found by a read-only scan of a Blade 16 (2023)'s
+    // controller; it is in neither razer-ctl nor OpenRazer. The reply is
+    // [2, cpu, gpu] in whole degrees Celsius. The CPU byte follows CPU heat but
+    // slowly and lower than a die sensor's (it peaked at 55 under a full load),
+    // so it looks like a sensor near the CPU, not the CPU die itself.
+    public const ushort GetTemperatures = 0x0D85;
+
     // Class 0x07: max fan speed. Custom performance mode only.
     public const ushort SetMaxFan = 0x070F;
     public const ushort GetMaxFan = 0x078F;

@@ -27,3 +27,50 @@ public class TemperatureTextTests
     public void ShownInWholeDegrees(double celsius, string expected) =>
         Assert.Equal(expected, TemperatureText.Format(null, celsius));
 }
+
+public class TemperatureExplanationTests
+{
+    [Fact]
+    public void TheCpuNote_SaysItIsANearbySensorThatReadsLowerThanDieSensors()
+    {
+        var text = TemperatureText.Explain(55, null);
+
+        Assert.Contains("laptop's controller", text);
+        Assert.Contains("sensor near the CPU", text);
+        Assert.Contains("lower than die sensors", text);
+    }
+
+    [Fact]
+    public void TheGpuNote_SaysItComesFromTheGraphicsDriver()
+    {
+        var text = TemperatureText.Explain(null, 41);
+
+        Assert.Contains("graphics driver", text);
+        Assert.DoesNotContain("CPU", text);
+    }
+
+    [Fact]
+    public void BothNotes_AreShownWhenBothTemperaturesAre()
+    {
+        var text = TemperatureText.Explain(55, 41);
+
+        Assert.Contains("CPU:", text);
+        Assert.Contains("GPU:", text);
+    }
+
+    [Fact]
+    public void WithNothingShown_ThereIsNothingToExplain() =>
+        Assert.Equal(string.Empty, TemperatureText.Explain(null, null));
+
+    [Fact]
+    public void TheNoteIsSeveralShortLines_SoTheTooltipStaysSmall()
+    {
+        var lines = TemperatureText.Explain(55, 41).Split('\n');
+
+        Assert.All(lines, line => Assert.True(line.Length <= 46, $"Too long for a small tooltip: {line}"));
+    }
+
+    [Fact]
+    public void TheCombinedText_ForBothTemperatures_MatchesWhatTheHeaderShows() =>
+        Assert.Equal("CPU: 55°C  ·  GPU: 41°C", TemperatureText.Format(55.2, 41.4));
+}

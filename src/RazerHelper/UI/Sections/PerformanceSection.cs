@@ -148,13 +148,21 @@ internal sealed class PerformanceSection : SectionPanel
         }
     }
 
-    /// <summary>Shows the GPU temperature left of the power source, or nothing when there is no reading.</summary>
-    public void ShowGpuTemperature(double? celsius)
+    /// <summary>
+    /// Shows the temperatures left of the power source, or nothing when there
+    /// is no reading. Polled every couple of seconds, so it does no work at
+    /// all (no repaint, no layout) when the shown text has not changed.
+    /// </summary>
+    public void ShowTemperatures(TemperatureReading reading)
     {
-        var text = TemperatureText.Format(cpuCelsius: null, gpuCelsius: celsius);
+        var text = TemperatureText.Format(reading.CpuCelsius, reading.GpuCelsius);
+
+        if (text == _temperatureLabel.Text)
+            return;
 
         _temperatureLabel.Text = text;
         _temperatureLabel.Margin = text.Length > 0 ? new Padding(0, 0, 16, 0) : Padding.Empty;
+        _toolTip.SetToolTip(_temperatureLabel, TemperatureText.Explain(reading.CpuCelsius, reading.GpuCelsius));
     }
 
     /// <summary>Applies the profile for the current power source, e.g. at startup.</summary>

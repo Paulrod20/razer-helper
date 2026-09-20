@@ -106,10 +106,13 @@ public sealed class TrayPopupForm : Form
 
         _settings = _settingsService.Load();
 
-        // Left out (tests, previews) there is no GPU to ask, so no temperature is shown.
+        // The CPU-side temperature comes from the laptop's controller, on the
+        // same channel as the fan speeds. With no GPU to ask (tests, previews)
+        // no GPU temperature is shown.
         _fanSection = new FanSection(
             new FanTelemetryService(_transport),
             _powerSource,
+            new EcTemperatureService(_transport),
             gpuTemperature ?? new NoGpuTemperature());
         _fanSection.MaxFanRequested += FanSection_MaxFanRequested;
 
@@ -124,8 +127,8 @@ public sealed class TrayPopupForm : Form
         _performanceSection.StateChanged += PerformanceSection_StateChanged;
         _performanceSection.AutoSwitchProfiles = _settings.AutoSwitchProfiles;
 
-        // The fan poll reads the GPU temperature; the Performance header is where it is shown.
-        _fanSection.GpuTemperatureRead += (_, celsius) => _performanceSection.ShowGpuTemperature(celsius);
+        // The fan poll reads the temperatures; the Performance header is where they are shown.
+        _fanSection.TemperaturesRead += (_, reading) => _performanceSection.ShowTemperatures(reading);
 
         _displaySection = new DisplaySection(
             new DisplayService(),

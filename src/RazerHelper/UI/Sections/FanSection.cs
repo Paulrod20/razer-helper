@@ -8,10 +8,11 @@ using static RazerHelper.UI.UiTheme;
 namespace RazerHelper.UI.Sections;
 
 /// <summary>
-/// CPU and GPU fan speed readout. Every poll it also reads the GPU temperature
-/// and announces it (<see cref="GpuTemperatureRead"/>), for the host to show
-/// wherever it likes. Polls only while the host says the popup is visible, so
-/// nothing is read (and the GPU is never asked anything) while the app sits in the tray.
+/// CPU and GPU fan speed readout. Every poll it also reads the CPU and GPU
+/// temperatures and announces them (<see cref="TemperaturesRead"/>), for the
+/// host to show wherever it likes. Polls only while the host says the popup is
+/// visible, so nothing is read (and neither chip is asked anything) while the
+/// app sits in the tray.
 /// </summary>
 internal sealed class FanSection : SectionPanel
 {
@@ -23,7 +24,9 @@ internal sealed class FanSection : SectionPanel
     private const string MaxUnavailableHint = "Needs Custom mode, plugged in";
 
     private readonly FanTelemetryService _telemetryService;
+    private readonly ICpuTemperatureSource _cpuTemperature;
     private readonly IGpuTemperatureSource _gpuTemperature;
+    private readonly HashSet<string> _loggedTemperatureFailures = [];
     private readonly IPowerSource _powerSource;
     private readonly ThemedToolTip _toolTip = new();
     private readonly System.Windows.Forms.Timer _pollTimer = new()
@@ -44,10 +47,12 @@ internal sealed class FanSection : SectionPanel
     public FanSection(
         FanTelemetryService telemetryService,
         IPowerSource powerSource,
+        ICpuTemperatureSource cpuTemperature,
         IGpuTemperatureSource gpuTemperature)
     {
         _telemetryService = telemetryService;
         _powerSource = powerSource;
+        _cpuTemperature = cpuTemperature;
         _gpuTemperature = gpuTemperature;
 
         _cpuFanLabel = CreateReadingLabel("CPU Fan: -- RPM");
@@ -102,8 +107,8 @@ internal sealed class FanSection : SectionPanel
     /// <summary>Raised when the user asks for max fan speed on (true) or off (false). The host performs it.</summary>
     public event EventHandler<bool>? MaxFanRequested;
 
-    /// <summary>Raised after every poll with the GPU temperature in Celsius, or null when there is no reading.</summary>
-    public event EventHandler<double?>? GpuTemperatureRead;
+    /// <summary>Raised after every poll with the temperatures read, each null when there is no reading for it.</summary>
+    public event EventHandler<TemperatureReading>? TemperaturesRead;
 
     /// <summary>Tells the fan buttons which performance mode the laptop is in, since Max depends on it.</summary>
     public void ShowPerformanceState(PerformanceState state)
@@ -128,7 +133,7 @@ internal sealed class FanSection : SectionPanel
         // A reading only means something for as long as it is being refreshed.
         // Clearing it now means reopening the popup never shows a temperature
         // from minutes ago while the first fresh one is on its way.
-        GpuTemperatureRead?.Invoke(this, null);
+        TemperaturesRead?.Invoke(this, TemperatureReading.None);
     }
 
     protected override void Dispose(bool disposing)
@@ -188,15 +193,15 @@ internal sealed class FanSection : SectionPanel
 
         try
         {
-            // Both are read at once, so the temperature never trails the fan speeds.
-            var temperature = Task.Run(_gpuTemperature.ReadCelsius);
+            // Read together, so the temperatures never trail the fan speeds.
+            var temperatures = Task.Run(ReadTemperatures);
             var reading = await _telemetryService.ReadAsync();
-            var gpuCelsius = await temperature;
+            var temperature = await temperatures;
 
             if (!_isPolling)
                 return;
 
-            GpuTemperatureRead?.Invoke(this, gpuCelsius);
+            TemperaturesRead?.Invoke(this, temperature);
 
             if (reading is null)
                 return;
@@ -212,12 +217,35 @@ internal sealed class FanSection : SectionPanel
             {
                 ShowReading(_cpuFanLabel, "CPU Fan", null);
                 ShowReading(_gpuFanLabel, "GPU Fan", null);
-                GpuTemperatureRead?.Invoke(this, null);
+                TemperaturesRead?.Invoke(this, TemperatureReading.None);
             }
         }
         finally
         {
             _refreshInProgress = false;
+        }
+    }
+
+    // Each source has its own safety net: a temperature that cannot be read is
+    // just missing, and can never take the fan speeds (or the other
+    // temperature) down with it.
+    private TemperatureReading ReadTemperatures() => new(
+        SafeRead("CPU temperature", _cpuTemperature.ReadCelsius),
+        SafeRead("GPU temperature", _gpuTemperature.ReadCelsius));
+
+    private double? SafeRead(string name, Func<double?> read)
+    {
+        try
+        {
+            return read();
+        }
+        catch (Exception exception)
+        {
+            // Polled every couple of seconds: log a failing source once, not every time.
+            if (_loggedTemperatureFailures.Add(name))
+                AppLog.Error($"Could not read the {name}.", exception);
+
+            return null;
         }
     }
 

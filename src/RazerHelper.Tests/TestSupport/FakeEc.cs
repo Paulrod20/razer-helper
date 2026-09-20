@@ -21,6 +21,13 @@ internal sealed class FakeEc : IRazerTransport
     public readonly byte[] FanRpmHundreds = [0, 0];
     public byte BatteryLimitByte = 0x50;
 
+    /// <summary>What the controller's temperature register reports, in whole degrees.</summary>
+    public byte CpuTemperature = 52;
+    public byte GpuTemperature = 36;
+
+    /// <summary>When true the controller does not implement the temperature register, like a different model.</summary>
+    public bool TemperaturesUnsupported;
+
     // Lighting, in the units the real laptop uses.
     /// <summary>Keyboard effect id: 0 off, 2 breathing, 3 spectrum, 4 wave (1 static, 5 reactive and 7 starlight exist too).</summary>
     public byte KeyboardEffectId = 3;
@@ -66,6 +73,9 @@ internal sealed class FakeEc : IRazerTransport
             RazerCommands.GetMaxFan => Respond((byte)(MaxFan ? 2 : 0), 0x00),
             RazerCommands.SetMaxFan => SetMaxFan(args),
             RazerCommands.GetActualFanRpm => Respond(0x00, args[1], FanRpmHundreds[args[1] - 1]),
+            RazerCommands.GetTemperatures => TemperaturesUnsupported
+                ? throw new RazerCommandNotSupportedException(command)
+                : Respond(0x02, CpuTemperature, GpuTemperature),
             RazerCommands.SetBatteryChargeLimit => SetBattery(args),
             RazerCommands.SetKeyboardEffect => SetKeyboardEffect(args),
             RazerCommands.GetKeyboardEffect => Respond(args[0], args[1], KeyboardEffectId, KeyboardWaveDirection),
