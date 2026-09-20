@@ -39,7 +39,8 @@ public sealed class FactoryResetTests : IDisposable
         AutoSwitchProfiles: false,
         HideWhenClickedAway: false,
         CloseGpuAppsOnUnplug: true,
-        NeverCloseApps: ["blender"]);
+        NeverCloseApps: ["blender"],
+        RazerLoginApprovals: new Dictionary<string, string> { ["RazerAppEngine"] = "01000000 30EF1369D343DD01".Replace(" ", "") });
 
     private (FactoryReset Reset, SettingsService Settings, FakeStartup Startup, FakeEc Ec) Create(bool startAtLogin = true)
     {
@@ -83,6 +84,18 @@ public sealed class FactoryResetTests : IDisposable
         await reset.RunAsync(before);
 
         Assert.Equal(ServiceStartMode.Automatic, settings.Load().RazerServiceStartModes!["RazerExperienceService"]);
+    }
+
+    [Fact]
+    public async Task KeepsTheRecordOfRazersLoginEntry_SoStartCanStillPutItBack()
+    {
+        var (reset, settings, _, _) = Create();
+        var before = LotsOfSettings();
+        settings.Save(before);
+
+        await reset.RunAsync(before);
+
+        Assert.Equal(before.RazerLoginApprovals, settings.Load().RazerLoginApprovals);
     }
 
     [Fact]
@@ -189,7 +202,8 @@ public sealed class FactoryResetTests : IDisposable
 
         foreach (var property in typeof(AppSettings).GetProperties().Where(p => p.Name is not ("EqualityContract")))
         {
-            if (property.Name == nameof(AppSettings.RazerServiceStartModes))
+            // The records "Start" needs to undo "Stop" are the deliberately kept parts.
+            if (property.Name is nameof(AppSettings.RazerServiceStartModes) or nameof(AppSettings.RazerLoginApprovals))
                 continue;
 
             Assert.True(

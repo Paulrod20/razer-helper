@@ -69,11 +69,13 @@ The app is not code-signed, so Windows will show "Unknown publisher" when it ask
 
 Razer's software runs several background services that use memory and can contend with this app for the laptop's controller. razer-helper gives you two ways to deal with that.
 
-**Stop them from the app.** When Razer's software is installed, the bottom of the window shows `Razer Services Running: N` with a **Stop** button.
+**Stop them from the app.** When Razer's software is installed, the bottom of the window shows `Razer Software Running: N` (its services plus its own programs, such as Synapse) with a **Stop** button. Hover the number to see exactly what it counts (services, programs, and whether Razer starts at login) and when it was last checked.
 
-- Stop asks Windows to stop every Razer service and turns off their automatic startup, so they stay off after a restart. Windows asks for administrator approval once.
-- **Start** restores each service to exactly the startup type it had before.
-- Nothing runs automatically. The app only changes services when you press the button, and it never deletes or uninstalls anything.
+- Stop asks Windows to stop every Razer service and turns off their automatic startup, so they stay off after a restart. Windows asks for administrator approval, but only when there are services left to stop.
+- Stop also **turns off Razer's start-at-login entry**, the same as switching it off in Task Manager's Startup tab. Razer's own entry is left in place; only its on/off switch changes.
+- Stop **asks Razer's running programs to close**, the same as clicking their X. Nothing is force-closed. Synapse lives in the tray and may ignore the request; quit it from its tray icon.
+- **Start** restores each service to exactly the startup type it had before, and puts the login entry's switch back exactly as it was.
+- Nothing runs automatically. The app only changes these when you press the button, and it never deletes or uninstalls anything. This app's own start-at-login entry is never touched.
 
 **For the cleanest experience, uninstall Razer Synapse.** Removing it takes away Razer's background services, its startup entry and its helper processes in one step, instead of switching them off. It is optional.
 

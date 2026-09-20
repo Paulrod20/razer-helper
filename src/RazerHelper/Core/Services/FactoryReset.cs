@@ -16,9 +16,10 @@ internal sealed record FactoryResetResult(IReadOnlyList<string> Problems)
 /// others, and the result says what did not work.
 /// </summary>
 /// <remarks>
-/// Razer's background services are deliberately not touched. The record of what
-/// each service was set to before "Stop" is kept, because "Start" needs it to
-/// put the services back exactly as they were; wiping it would strand them.
+/// Razer's background software is deliberately not touched. The records of what
+/// each service and login entry were set to before "Stop" are kept, because
+/// "Start" needs them to put everything back exactly as it was; wiping them
+/// would strand it.
 /// </remarks>
 internal sealed class FactoryReset(
     SettingsService settingsService,
@@ -26,9 +27,11 @@ internal sealed class FactoryReset(
     PerformanceService performanceService,
     BatteryChargeLimitService batteryChargeLimitService)
 {
-    /// <summary>First-run settings, except for the record of Razer services that "Stop" disabled.</summary>
+    /// <summary>First-run settings, except for the records of what Razer's services and login entries were before "Stop".</summary>
     internal static AppSettings DefaultsKeepingServiceRecord(AppSettings current) =>
-        new(RazerServiceStartModes: current.RazerServiceStartModes);
+        new(
+            RazerServiceStartModes: current.RazerServiceStartModes,
+            RazerLoginApprovals: current.RazerLoginApprovals);
 
     public async Task<FactoryResetResult> RunAsync(AppSettings current)
     {

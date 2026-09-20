@@ -23,4 +23,8 @@ internal sealed record AppSettings(
     bool CloseGpuAppsOnUnplug = false,
     // Program names (e.g. "blender") to never close, on top of the built-in
     // list. Edited by hand in settings.json.
-    string[]? NeverCloseApps = null);
+    string[]? NeverCloseApps = null,
+    // What Task Manager's startup switch was for each Razer login entry before
+    // "Stop" turned it off (as stored text; empty means it had none), so "Start"
+    // can put back exactly that.
+    Dictionary<string, string>? RazerLoginApprovals = null);

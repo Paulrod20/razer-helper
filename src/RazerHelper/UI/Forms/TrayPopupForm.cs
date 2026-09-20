@@ -70,7 +70,9 @@ public sealed class TrayPopupForm : Form
             new WindowsServiceControl(),
             new SettingsService(),
             new RunKeyStartupRegistration(Environment.ProcessPath ?? Application.ExecutablePath),
-            ownsDependencies: true)
+            ownsDependencies: true,
+            loginEntries: new RunKeyLoginEntries(),
+            razerApps: new WindowsRazerApps())
     {
     }
 
@@ -86,7 +88,9 @@ public sealed class TrayPopupForm : Form
         SettingsService settingsService,
         IStartupRegistration startupRegistration,
         bool ownsDependencies = false,
-        IProcessControl? processControl = null)
+        IProcessControl? processControl = null,
+        ILoginEntries? loginEntries = null,
+        IRazerApps? razerApps = null)
     {
         _transport = transport;
         _powerSource = powerSource;
@@ -129,11 +133,17 @@ public sealed class TrayPopupForm : Form
         _lightingSection = new LightingSection(new LightingService(_transport));
         _lightingSection.StatusChanged += Section_StatusChanged;
 
+        // Left out (tests, previews) they are inert: no login entries, no programs.
         _servicesSection = new ServicesSection(
-            new RazerServiceManager(serviceControl),
-            _settings.RazerServiceStartModes);
+            new RazerSoftwareManager(
+                new RazerServiceManager(serviceControl),
+                new RazerLoginEntryManager(loginEntries ?? new NoLoginEntries()),
+                razerApps ?? new NoRazerApps()),
+            _settings.RazerServiceStartModes,
+            _settings.RazerLoginApprovals);
         _servicesSection.HasServicesChanged += ServicesSection_HasServicesChanged;
         _servicesSection.StartModesRecorded += ServicesSection_StartModesRecorded;
+        _servicesSection.LoginEntriesRecorded += ServicesSection_LoginEntriesRecorded;
         _servicesSection.ModalStateChanged += ServicesSection_ModalStateChanged;
         _servicesSection.StatusChanged += Section_StatusChanged;
 
@@ -453,6 +463,10 @@ public sealed class TrayPopupForm : Form
 
     private void ServicesSection_StartModesRecorded(object? sender, Dictionary<string, ServiceStartMode> modes) =>
         SaveSettings(_settings with { RazerServiceStartModes = modes });
+
+    // An empty record means everything was restored, so there is nothing to keep.
+    private void ServicesSection_LoginEntriesRecorded(object? sender, Dictionary<string, string> approvals) =>
+        SaveSettings(_settings with { RazerLoginApprovals = approvals.Count > 0 ? approvals : null });
 
     // The fan buttons ask, the performance section does it (it owns the EC conversation).
     private void FanSection_MaxFanRequested(object? sender, bool enabled) =>

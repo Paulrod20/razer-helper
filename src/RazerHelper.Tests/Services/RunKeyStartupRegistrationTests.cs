@@ -8,7 +8,8 @@ public sealed class RunKeyStartupRegistrationTests : IDisposable
 {
     private const string ExePath = @"C:\Program Files\Razer Helper\RazerHelper.exe";
 
-    private readonly string _root = $@"Software\RazerHelperTests\{Guid.NewGuid():N}";
+    // Its own uniquely named root, deleted on its own: test classes run in parallel.
+    private readonly string _root = $@"Software\RazerHelperTests_{Guid.NewGuid():N}";
     private string RunPath => $@"{_root}\Run";
     private string ApprovedPath => $@"{_root}\Approved";
 
@@ -16,7 +17,7 @@ public sealed class RunKeyStartupRegistrationTests : IDisposable
         new(ExePath, "RazerHelperTest", RunPath, ApprovedPath);
 
     public void Dispose() =>
-        Registry.CurrentUser.DeleteSubKeyTree(@"Software\RazerHelperTests", throwOnMissingSubKey: false);
+        Registry.CurrentUser.DeleteSubKeyTree(_root, throwOnMissingSubKey: false);
 
     [Fact]
     public void IsEnabled_IsFalseWhenNothingIsRegistered() =>

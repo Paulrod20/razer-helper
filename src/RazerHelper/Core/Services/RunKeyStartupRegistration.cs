@@ -29,8 +29,7 @@ internal sealed class RunKeyStartupRegistration(
 
             using var approvedKey = Registry.CurrentUser.OpenSubKey(approvedKeyPath);
 
-            // Task Manager writes a binary flag: an odd first byte means disabled.
-            return approvedKey?.GetValue(valueName) is not byte[] { Length: > 0 } flag || (flag[0] & 1) == 0;
+            return !StartupApproval.IsDisabled(approvedKey?.GetValue(valueName) as byte[]);
         }
     }
 

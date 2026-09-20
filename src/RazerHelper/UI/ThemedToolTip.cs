@@ -42,12 +42,19 @@ internal sealed class ThemedToolTip : ToolTip
         e.Graphics.FillRectangle(background, e.Bounds);
         e.Graphics.DrawRectangle(border, 0, 0, e.Bounds.Width - 1, e.Bounds.Height - 1);
 
+        // A short message reads best centered; a list of lines reads best from the left.
+        var alignment = e.ToolTipText?.Contains('\n') == true ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter;
+
         TextRenderer.DrawText(
             e.Graphics,
             e.ToolTipText,
             TipFont,
-            e.Bounds,
+            new Rectangle(
+                e.Bounds.X + TextPadding.Left,
+                e.Bounds.Y,
+                e.Bounds.Width - TextPadding.Horizontal,
+                e.Bounds.Height),
             Color.Gainsboro,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            alignment | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
     }
 }
