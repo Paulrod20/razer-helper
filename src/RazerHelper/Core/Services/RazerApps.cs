@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace RazerHelper.Core.Services;
 
@@ -80,20 +79,56 @@ internal sealed class WindowsRazerApps : IRazerApps
 
     private static IEnumerable<(Process Process, string Name)> EnumerateRazerProcesses()
     {
-        foreach (var process in Process.GetProcesses())
-        {
-            var path = TryGetPath(process.Id);
+        // One buffer for every path lookup, instead of one per process.
+        var buffer = new char[1024];
 
-            // Never this app, which may itself live somewhere with "Razer" in its path.
-            if (process.Id != Environment.ProcessId && RazerSoftwarePaths.IsInRazerFolder(path))
-                yield return (process, Path.GetFileNameWithoutExtension(path)!);
-            else
-                process.Dispose();
+        foreach (var processId in ListProcessIds())
+        {
+            if (processId == Environment.ProcessId)
+                continue; // Never this app, which may itself live somewhere with "Razer" in its path.
+
+            var path = TryGetPath(processId, buffer);
+
+            if (!RazerSoftwarePaths.IsInRazerFolder(path))
+                continue;
+
+            // A Process object is only built for the few that matter; Process.GetProcesses
+            // would build one for every process on the machine.
+            Process process;
+
+            try
+            {
+                process = Process.GetProcessById(processId);
+            }
+            catch (ArgumentException)
+            {
+                continue; // Exited since the snapshot.
+            }
+
+            yield return (process, Path.GetFileNameWithoutExtension(path)!);
+        }
+    }
+
+    // The ids of every running process, in one call. The list is grown until it
+    // is large enough to hold them all.
+    private static int[] ListProcessIds()
+    {
+        var ids = new int[512];
+
+        while (true)
+        {
+            if (!EnumProcesses(ids, (uint)(ids.Length * sizeof(int)), out var bytesReturned))
+                return [];
+
+            if (bytesReturned < ids.Length * sizeof(int))
+                return ids[..((int)bytesReturned / sizeof(int))];
+
+            ids = new int[ids.Length * 2];
         }
     }
 
     // Cheaper than Process.MainModule, and works for processes we may only query in a limited way.
-    private static string? TryGetPath(int processId)
+    private static string? TryGetPath(int processId, char[] buffer)
     {
         var handle = OpenProcess(QueryLimitedInformation, false, processId);
 
@@ -102,10 +137,9 @@ internal sealed class WindowsRazerApps : IRazerApps
 
         try
         {
-            var buffer = new StringBuilder(1024);
-            var size = buffer.Capacity;
+            var size = buffer.Length;
 
-            return QueryFullProcessImageName(handle, 0, buffer, ref size) ? buffer.ToString() : null;
+            return QueryFullProcessImageName(handle, 0, buffer, ref size) ? new string(buffer, 0, size) : null;
         }
         finally
         {
@@ -113,12 +147,16 @@ internal sealed class WindowsRazerApps : IRazerApps
         }
     }
 
+    [DllImport("psapi.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumProcesses([Out] int[] processIds, uint size, out uint bytesReturned);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, int processId);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder path, ref int size);
+    private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, [Out] char[] path, ref int size);
 
     [DllImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
