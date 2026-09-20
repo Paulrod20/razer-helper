@@ -72,7 +72,8 @@ public sealed class TrayPopupForm : Form
             new RunKeyStartupRegistration(Environment.ProcessPath ?? Application.ExecutablePath),
             ownsDependencies: true,
             loginEntries: new RunKeyLoginEntries(),
-            razerApps: new WindowsRazerApps())
+            razerApps: new WindowsRazerApps(),
+            gpuTemperature: new D3dkmtGpuTemperature())
     {
     }
 
@@ -90,7 +91,8 @@ public sealed class TrayPopupForm : Form
         bool ownsDependencies = false,
         IProcessControl? processControl = null,
         ILoginEntries? loginEntries = null,
-        IRazerApps? razerApps = null)
+        IRazerApps? razerApps = null,
+        IGpuTemperatureSource? gpuTemperature = null)
     {
         _transport = transport;
         _powerSource = powerSource;
@@ -104,7 +106,11 @@ public sealed class TrayPopupForm : Form
 
         _settings = _settingsService.Load();
 
-        _fanSection = new FanSection(new FanTelemetryService(_transport), _powerSource);
+        // Left out (tests, previews) there is no GPU to ask, so no temperature is shown.
+        _fanSection = new FanSection(
+            new FanTelemetryService(_transport),
+            _powerSource,
+            gpuTemperature ?? new NoGpuTemperature());
         _fanSection.MaxFanRequested += FanSection_MaxFanRequested;
 
         _performanceSection = new PerformanceSection(
@@ -117,6 +123,9 @@ public sealed class TrayPopupForm : Form
         _performanceSection.StatusChanged += Section_StatusChanged;
         _performanceSection.StateChanged += PerformanceSection_StateChanged;
         _performanceSection.AutoSwitchProfiles = _settings.AutoSwitchProfiles;
+
+        // The fan poll reads the GPU temperature; the Performance header is where it is shown.
+        _fanSection.GpuTemperatureRead += (_, celsius) => _performanceSection.ShowGpuTemperature(celsius);
 
         _displaySection = new DisplaySection(
             new DisplayService(),

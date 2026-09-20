@@ -329,21 +329,21 @@ internal sealed class ServicesSection : SectionPanel
         if (services.Count > 0)
         {
             lines.Add($"These {services.Count} services will be stopped and kept off, including after a restart:");
-            lines.AddRange(services.Select(service => $"  â€¢ {service.DisplayName}"));
+            lines.AddRange(services.Select(service => $"  \u2022 {service.DisplayName}"));
             lines.Add(string.Empty);
         }
 
         if (status.RunningApps.Count > 0)
         {
             lines.Add("These Razer programs are running and will be asked to close (nothing is force-closed):");
-            lines.AddRange(status.RunningApps.Select(name => $"  â€¢ {name}"));
+            lines.AddRange(status.RunningApps.Select(name => $"  \u2022 {name}"));
             lines.Add(string.Empty);
         }
 
         if (status.LoginEnabled)
         {
             lines.Add("Razer will be stopped from starting when you sign in, the same as switching it off in Task Manager's Startup tab:");
-            lines.AddRange(status.LoginEntries.Where(entry => entry.IsEnabled).Select(entry => $"  â€¢ {entry.Name}"));
+            lines.AddRange(status.LoginEntries.Where(entry => entry.IsEnabled).Select(entry => $"  \u2022 {entry.Name}"));
             lines.Add(string.Empty);
         }
 

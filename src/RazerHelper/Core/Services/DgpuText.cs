@@ -15,7 +15,7 @@ internal static class DgpuText
         text.AppendLine();
 
         foreach (var group in apps.GroupBy(app => app.Name, StringComparer.OrdinalIgnoreCase))
-            text.AppendLine($"  • {Describe(group.Key, group.ToList())}");
+            text.AppendLine($"  \u2022 {Describe(group.Key, group.ToList())}");
 
         text.AppendLine();
         text.Append("Ask them to close? Each one can still ask you to save your work first.");

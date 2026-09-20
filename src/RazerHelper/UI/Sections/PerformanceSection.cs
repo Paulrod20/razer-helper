@@ -26,6 +26,7 @@ internal sealed class PerformanceSection : SectionPanel
     private readonly Dictionary<PerformanceMode, Button> _buttons = [];
     private readonly CustomBoostRow _customRow = new();
     private readonly Label _sourceLabel;
+    private readonly Label _temperatureLabel;
     private readonly ThemedToolTip _toolTip = new();
 
     // Keyed by "plugged in".
@@ -70,20 +71,31 @@ internal sealed class PerformanceSection : SectionPanel
         _customRow.CpuSelected += async (_, level) => await SelectCpuAsync(level);
         _customRow.GpuSelected += async (_, level) => await SelectGpuAsync(level);
 
-        _sourceLabel = new Label
+        _sourceLabel = CreateHeaderValueLabel();
+        _temperatureLabel = CreateHeaderValueLabel();
+
+        // The GPU temperature and the power source sit together on the right,
+        // the temperature first. The temperature is empty (and takes no room)
+        // until a reading arrives, and for good when the GPU reports none.
+        var headerValues = new FlowLayoutPanel
         {
             AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Right,
-            Font = CreateDesignFont("Segoe UI", 9.5F),
-            ForeColor = Color.Silver,
-            TextAlign = ContentAlignment.MiddleRight
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            WrapContents = false
         };
 
-        var header = CreateTwoColumnLayout(60F, 40F);
+        headerValues.Controls.Add(_temperatureLabel);
+        headerValues.Controls.Add(_sourceLabel);
+
+        var header = CreateTwoColumnLayout(50F, 50F);
         header.Dock = DockStyle.Top;
         header.Height = 28;
         header.Controls.Add(CreateSectionLabel("Performance Mode"), 0, 0);
-        header.Controls.Add(_sourceLabel, 1, 0);
+        header.Controls.Add(headerValues, 1, 0);
 
         // Dock order: the header docks first, then the custom row, and the
         // mode buttons fill whatever is left.
@@ -134,6 +146,15 @@ internal sealed class PerformanceSection : SectionPanel
             if (value && IsPluggedIn != _appliedSource)
                 _ = ApplyActiveProfileAsync();
         }
+    }
+
+    /// <summary>Shows the GPU temperature left of the power source, or nothing when there is no reading.</summary>
+    public void ShowGpuTemperature(double? celsius)
+    {
+        var text = TemperatureText.Format(cpuCelsius: null, gpuCelsius: celsius);
+
+        _temperatureLabel.Text = text;
+        _temperatureLabel.Margin = text.Length > 0 ? new Padding(0, 0, 16, 0) : Padding.Empty;
     }
 
     /// <summary>Applies the profile for the current power source, e.g. at startup.</summary>
@@ -350,6 +371,15 @@ internal sealed class PerformanceSection : SectionPanel
         if (changed)
             CustomRowVisibilityChanged?.Invoke(this, shown);
     }
+
+    private static Label CreateHeaderValueLabel() => new()
+    {
+        AutoSize = true,
+        Font = CreateDesignFont("Segoe UI", 9.5F),
+        ForeColor = Color.Silver,
+        Margin = Padding.Empty,
+        TextAlign = ContentAlignment.MiddleRight
+    };
 
     private void UpdateSourceLabel() =>
         _sourceLabel.Text = IsPluggedIn ? "Plugged in" : "On battery";

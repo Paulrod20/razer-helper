@@ -12,6 +12,7 @@ It lives in the system tray, talks to the laptop's controller directly, and need
 - **Power profiles:** separate settings for plugged in and on battery, applied automatically when you plug or unplug. On battery only Balanced is offered, as in Synapse.
 - **Battery charge limit:** 60%, 80% or 100% (no limit).
 - **Display refresh rate:** 60 Hz, 120 Hz, or Auto, which follows the power source.
+- **GPU temperature:** shown at the top, to the left of the power source, and refreshed every 2 seconds while the window is open. It is not read while the window is closed.
 - **Fans:** live CPU and GPU fan speed, and **Max** fan speed (both fans flat out). Max is a one-off that needs Custom mode and AC power; **Auto** turns it off, and it clears by itself when you leave Custom.
 - **Lighting:** the keyboard backlight (Off, Static green, Spectrum, Wave, Breathing) and the Razer logo on the lid (Off, On, Breathing), each with a brightness slider. Always available, on battery or plugged in.
 - **Razer background services:** shows how many are running, and can stop and restore them (see below).
@@ -22,6 +23,8 @@ It lives in the system tray, talks to the laptop's controller directly, and need
 ## Not yet
 
 Manual fan control, the CPU overclock toggle, other Blade models, and Razer mice, keyboards and headsets.
+
+**CPU temperature is not shown.** Windows does not expose a real CPU temperature without a kernel driver (its own thermal zones on this laptop are fixed values that do not move under load), and razer-helper deliberately installs no driver. The GPU temperature is read the same way Task Manager reads it, and is only read while the window is open.
 
 **Choosing a keyboard color and per-key lighting are not available.** On the Blade 16 the laptop only honors a chosen color in a "driver mode" that also switches off the Fn media keys (volume, screen and keyboard brightness), and razer-helper does not trade those away. In normal mode a static effect always shows Razer green, which is why the option is called **Static green**. Effects the laptop does not run on its own, such as Wheel, are not offered either. The built-in effects listed above are the ones the laptop runs by itself.
 
