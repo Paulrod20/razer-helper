@@ -7,6 +7,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Version>1.0.0</Version>
+
+    <!-- A tray app that mostly sleeps never benefits from profile-guided re-optimization;
+         measured, turning it off saves about 4 MB of memory once the popup has been used. -->
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
 
   <ItemGroup>
