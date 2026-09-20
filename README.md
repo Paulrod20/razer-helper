@@ -63,11 +63,19 @@ It is deliberately cautious:
 
 - Windows 11
 - Razer Blade 16 (2023), USB product ID `0x029F`
-- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
+- The [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (choose ".NET Desktop Runtime" for x64). The installer checks for it and will not install without it.
 
-## Getting started
+## Install
 
-There are no prebuilt releases yet. To run from source:
+1. Install the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) if you do not have it.
+2. Download `RazerHelper-Setup-<version>.exe` from the [Releases page](https://github.com/Paulrod20/razer-helper/releases) and run it. It installs for your user only and does not ask for administrator rights.
+3. Start RazerHelper from the Start menu. It lives in the tray; click the icon, or press **Fn+Del** from any program, to open it.
+
+The installer and the app are not code-signed, so Windows SmartScreen may say "Windows protected your PC" (click **More info**, then **Run anyway**), and Windows will show "Unknown publisher" when the app asks for administrator approval. To remove RazerHelper, uninstall it from Windows Settings > Apps; that also removes its start-at-login entry. Your settings stay in `%LOCALAPPDATA%\RazerHelper` until you delete that folder.
+
+## Build from source
+
+To run from source:
 
 ```
 git clone https://github.com/Paulrod20/razer-helper.git
@@ -82,7 +90,13 @@ cd src/RazerHelper.Tests
 dotnet test
 ```
 
-The app is not code-signed, so Windows will show "Unknown publisher" when it asks for administrator approval.
+To build the installer yourself (needs the .NET 10 SDK and [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
+
+```
+installer\build.ps1
+```
+
+It publishes the app as a single exe and writes `dist\RazerHelper-Setup-<version>.exe`.
 
 ## Razer Synapse and Razer's background software
 
