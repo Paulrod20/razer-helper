@@ -11,10 +11,18 @@
     <!-- A tray app that mostly sleeps never benefits from profile-guided re-optimization;
          measured, turning it off saves about 4 MB of memory once the popup has been used. -->
     <TieredPGO>false</TieredPGO>
+
+    <!-- The icon of the exe (Explorer, the taskbar, Task Manager). -->
+    <ApplicationIcon>Assets\RazerHelper.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same icon, inside the exe, for the tray. -->
+    <EmbeddedResource Include="Assets\RazerHelper.ico" LogicalName="RazerHelper.ico" />
   </ItemGroup>
 
   <ItemGroup>

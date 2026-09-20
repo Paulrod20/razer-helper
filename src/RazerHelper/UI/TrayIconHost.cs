@@ -21,12 +21,31 @@ public sealed class TrayIconHost : IDisposable
         _notifyIcon = new NotifyIcon
         {
             ContextMenuStrip = _menu,
-            Icon = SystemIcons.Application,
+            Icon = LoadTrayIcon(),
             Text = "RazerHelper",
             Visible = true
         };
 
         _notifyIcon.MouseClick += OnTrayIconMouseClick;
+    }
+
+    // The icon file holds several sizes; ask for the one the tray uses at this
+    // display scale (16 px at 100%, larger on high-density screens).
+    private static Icon LoadTrayIcon()
+    {
+        try
+        {
+            using var stream = typeof(TrayIconHost).Assembly.GetManifestResourceStream("RazerHelper.ico");
+
+            if (stream is not null)
+                return new Icon(stream, SystemInformation.SmallIconSize);
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException)
+        {
+            RazerHelper.Core.Diagnostics.AppLog.Error("Could not load the tray icon.", exception);
+        }
+
+        return SystemIcons.Application;
     }
 
     public void Dispose()
