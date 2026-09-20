@@ -25,6 +25,7 @@ internal sealed class SettingsForm : Form
     private readonly Label _errorLabel;
 
     private bool _isLoading = true;
+    private Form? _anchor;
 
     public SettingsForm(AppSettings settings, IStartupRegistration startupRegistration)
     {
@@ -232,6 +233,26 @@ internal sealed class SettingsForm : Form
 
         link.LinkClicked += (_, _) => open();
         return link;
+    }
+
+    /// <summary>Opens next to this window (the popup) instead of centered over it, where it would hide it.</summary>
+    public void PlaceBeside(Form anchor)
+    {
+        StartPosition = FormStartPosition.Manual;
+        _anchor = anchor;
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+
+        if (_anchor is null)
+            return;
+
+        // The size is only final once the layout has run.
+        PerformLayout();
+        var workingArea = Screen.FromRectangle(_anchor.Bounds).WorkingArea;
+        Location = WindowPlacement.Beside(_anchor.Bounds, Size, workingArea);
     }
 
     protected override void OnHandleCreated(EventArgs e)

@@ -425,6 +425,11 @@ public sealed class TrayPopupForm : Form
             _dgpuCoordinator.Enabled = enabled;
         };
 
+        // Next to the popup, not over it, and in front of it: a popup that is
+        // above other windows would otherwise hide the dialog it opened.
+        settingsForm.PlaceBeside(this);
+        settingsForm.TopMost = TopMost;
+
         using (KeepOpen())
             settingsForm.ShowDialog(this);
 
