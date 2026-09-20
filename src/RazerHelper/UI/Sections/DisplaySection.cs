@@ -16,14 +16,21 @@ internal sealed class DisplaySection : SectionPanel
     private readonly DisplayRefreshMode? _savedMode;
     private readonly Label _statusLabel;
     private readonly Dictionary<DisplayRefreshMode, Button> _buttons = [];
+    private readonly FullscreenGuard _fullscreenGuard;
+
+    // Only runs while an automatic change is on hold behind a fullscreen game.
+    private readonly System.Windows.Forms.Timer _retryTimer = new() { Interval = 10_000 };
 
     private DisplayRefreshMode? _selectedMode;
 
     public DisplaySection(
         DisplayService displayService,
         IPowerSource powerSource,
-        DisplayRefreshMode? savedMode)
+        DisplayRefreshMode? savedMode,
+        IFullscreenDetector? fullscreenDetector = null)
     {
+        _fullscreenGuard = new FullscreenGuard(fullscreenDetector ?? new NoFullscreenDetector());
+        _retryTimer.Tick += RetryTimer_Tick;
         _displayService = displayService;
         _powerSource = powerSource;
         _savedMode = savedMode;
@@ -75,13 +82,33 @@ internal sealed class DisplaySection : SectionPanel
                 ApplyAuto();
         }
 
-        UpdateDisplayStatus();
+        // Keep the "waiting for the game" note if a change was just put on hold.
+        if (!_fullscreenGuard.IsWaiting)
+            UpdateDisplayStatus();
+    }
+
+    /// <summary>
+    /// Shows what the display is doing now. Called when the popup opens, because a
+    /// game may have changed the resolution or refresh rate since it was last read.
+    /// Also lets a change that was held back behind a game go ahead if the game is gone.
+    /// </summary>
+    public void RefreshStatus()
+    {
+        if (_fullscreenGuard.ReadyToRetry)
+            ApplyAuto();
+        else if (!_fullscreenGuard.IsWaiting)
+            UpdateDisplayStatus();
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             _powerSource.PowerSourceChanged -= PowerSource_PowerSourceChanged;
+            _retryTimer.Stop();
+            _retryTimer.Tick -= RetryTimer_Tick;
+            _retryTimer.Dispose();
+        }
 
         base.Dispose(disposing);
     }
@@ -95,6 +122,10 @@ internal sealed class DisplaySection : SectionPanel
             ApplyAuto();
             return;
         }
+
+        // A rate the user picked replaces anything that was on hold.
+        _fullscreenGuard.Cancel();
+        _retryTimer.Stop();
 
         if (!_displayService.TrySetPrimaryRefreshRate(mode.FixedHz!.Value, out var message))
         {
@@ -129,6 +160,17 @@ internal sealed class DisplaySection : SectionPanel
             return;
         }
 
+        // A fullscreen game has the screen: changing the refresh rate under it can
+        // make it flicker or drop out. Hold the change, and try again until it is gone.
+        if (!_fullscreenGuard.CanApplyNow())
+        {
+            _statusLabel.Text = "Auto: waiting for the game";
+            _retryTimer.Start();
+            return;
+        }
+
+        _retryTimer.Stop();
+
         var targetHz = DisplayRefreshMode.Auto.TargetHz(isPluggedIn.Value);
 
         if (_displayService.GetPrimaryDisplayInfo()?.RefreshRateHz != targetHz &&
@@ -139,6 +181,12 @@ internal sealed class DisplaySection : SectionPanel
         }
 
         UpdateDisplayStatus();
+    }
+
+    private void RetryTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_fullscreenGuard.ReadyToRetry)
+            ApplyAuto();
     }
 
     private void UpdateDisplayStatus()

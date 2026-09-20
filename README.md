@@ -34,7 +34,7 @@ Press **Fn+Del** in any program, even a game, to bring the window to the front, 
 
 ## Light on resources
 
-It sits in the tray and does nothing until you open it. Its only timer, which reads fan speeds and temperatures, runs only while the window is open and stops when it is hidden, so the laptop is not polled while the window is closed. It only acts on events, such as plugging in or unplugging. Results are reused so the laptop's controller is not asked twice for the same thing. On the developer's machine it idles at roughly 15 MB of private memory. It uses one small dependency (for Windows services) and installs no driver.
+It sits in the tray and does nothing until you open it. Its only timer, which reads fan speeds and temperatures, runs only while the window is open and stops when it is hidden, so the laptop is not polled while the window is closed. It only acts on events, such as plugging in or unplugging. Results are reused so the laptop's controller is not asked twice for the same thing. Measured on the developer's machine, the installed app uses about 18 MB of private memory (about 73 MB of working set, which includes memory shared with the .NET runtime) and 14 threads. It uses one small dependency (for Windows services) and installs no driver.
 
 ## Not yet
 

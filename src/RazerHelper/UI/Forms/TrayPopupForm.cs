@@ -74,7 +74,8 @@ public sealed class TrayPopupForm : Form
             ownsDependencies: true,
             loginEntries: new RunKeyLoginEntries(),
             razerApps: new WindowsRazerApps(),
-            gpuTemperature: new D3dkmtGpuTemperature())
+            gpuTemperature: new D3dkmtGpuTemperature(),
+            fullscreenDetector: new WindowsFullscreenDetector())
     {
     }
 
@@ -93,7 +94,8 @@ public sealed class TrayPopupForm : Form
         IProcessControl? processControl = null,
         ILoginEntries? loginEntries = null,
         IRazerApps? razerApps = null,
-        IGpuTemperatureSource? gpuTemperature = null)
+        IGpuTemperatureSource? gpuTemperature = null,
+        IFullscreenDetector? fullscreenDetector = null)
     {
         _transport = transport;
         _powerSource = powerSource;
@@ -134,7 +136,8 @@ public sealed class TrayPopupForm : Form
         _displaySection = new DisplaySection(
             new DisplayService(),
             _powerSource,
-            DisplayRefreshMode.Parse(_settings.DisplayMode));
+            DisplayRefreshMode.Parse(_settings.DisplayMode),
+            fullscreenDetector);
         _displaySection.DisplayModeChanged += DisplaySection_DisplayModeChanged;
 
         _batterySection = new BatterySection(
@@ -696,6 +699,9 @@ public sealed class TrayPopupForm : Form
         if (Visible)
         {
             _fanSection.StartPolling();
+
+            // A game may have changed the resolution or refresh rate since it was last read.
+            _displaySection.RefreshStatus();
 
             // Fn+P changes the mode without telling us; show what the EC has.
             _ = _performanceSection.RefreshAsync();
