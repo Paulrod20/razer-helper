@@ -4,20 +4,12 @@ namespace RazerHelper.Tests.Models;
 
 public class DisplayRefreshModeTests
 {
-    [Fact]
-    public void OfferedModes_AreSixtyOneTwentyAndAutoInThatOrder()
-    {
-        Assert.Equal(
-            [DisplayRefreshMode.Fixed(60), DisplayRefreshMode.Fixed(120), DisplayRefreshMode.Auto],
-            DisplayRefreshMode.Offered);
-    }
-
     [Theory]
-    [InlineData(true, 120)]
+    [InlineData(true, 240)]
     [InlineData(false, 60)]
     public void Auto_PicksTheFastRateOnPowerAndTheEfficientRateOnBattery(bool pluggedIn, int expectedHz)
     {
-        Assert.Equal(expectedHz, DisplayRefreshMode.Auto.TargetHz(pluggedIn));
+        Assert.Equal(expectedHz, DisplayRefreshMode.Auto.TargetHz(pluggedIn, fastHz: 240));
     }
 
     [Theory]
@@ -25,8 +17,8 @@ public class DisplayRefreshModeTests
     [InlineData(false)]
     public void AFixedMode_IgnoresThePowerSource(bool pluggedIn)
     {
-        Assert.Equal(60, DisplayRefreshMode.Fixed(60).TargetHz(pluggedIn));
-        Assert.Equal(120, DisplayRefreshMode.Fixed(120).TargetHz(pluggedIn));
+        Assert.Equal(60, DisplayRefreshMode.Fixed(60).TargetHz(pluggedIn, fastHz: 240));
+        Assert.Equal(120, DisplayRefreshMode.Fixed(120).TargetHz(pluggedIn, fastHz: 240));
     }
 
     [Fact]
@@ -50,12 +42,21 @@ public class DisplayRefreshModeTests
         Assert.Equal("Auto", DisplayRefreshMode.Auto.Label);
     }
 
-    [Fact]
-    public void EveryOfferedMode_SurvivesAStoreAndReloadOfItsLabel()
+    [Theory]
+    [InlineData(60)]
+    [InlineData(165)]
+    public void AFixedMode_SurvivesAStoreAndReloadOfItsLabel(int hertz)
     {
         // The label is what lands in settings.json, so it must parse back.
-        Assert.All(DisplayRefreshMode.Offered, mode =>
-            Assert.Equal(mode, DisplayRefreshMode.Parse(mode.Label)));
+        var mode = DisplayRefreshMode.Fixed(hertz);
+
+        Assert.Equal(mode, DisplayRefreshMode.Parse(mode.Label));
+    }
+
+    [Fact]
+    public void Auto_SurvivesAStoreAndReloadOfItsLabel()
+    {
+        Assert.Equal(DisplayRefreshMode.Auto, DisplayRefreshMode.Parse(DisplayRefreshMode.Auto.Label));
     }
 
     [Fact]

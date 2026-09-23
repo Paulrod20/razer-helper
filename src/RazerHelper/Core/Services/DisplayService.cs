@@ -10,13 +10,7 @@ internal sealed class DisplayService
     private const int CdsTest = 0x00000002;
     private const int DmDisplayFrequency = 0x00400000;
 
-    private static DeviceMode CreateDeviceMode()
-    { 
-        return new DeviceMode
-        {
-            Size = (short)Marshal.SizeOf<DeviceMode>()
-        };
-    }
+    private static DeviceMode CreateDeviceMode() => new() { Size = (short)Marshal.SizeOf<DeviceMode>() };
 
     public DisplayInfo? GetPrimaryDisplayInfo()
     {
@@ -40,34 +34,29 @@ internal sealed class DisplayService
         );
     }
 
-    public bool TrySetPrimaryRefreshRate(int refreshRateHz, out string message)
+    /// <summary>The distinct refresh rates Windows reports for the display's current resolution, ascending.</summary>
+    public IReadOnlyList<int> GetAvailableRefreshRates()
     {
-        var currentMode = CreateDeviceMode();
+        var rates = new SortedSet<int>();
 
-        if (!EnumDisplaySettings(null, EnumCurrentSettings, ref currentMode))
+        foreach (var mode in EnumerateModesAtCurrentResolution())
         {
-            message = "Could not read the current display mode.";
-            return false;
+            // 0 and 1 are Windows' "use the hardware default" sentinel, not a real rate.
+            if (mode.RefreshRateHz > 1)
+                rates.Add(mode.RefreshRateHz);
         }
 
-        for (var modeNumber = 0; ; modeNumber++)
+        return rates.ToList();
+    }
+
+    public bool TrySetPrimaryRefreshRate(int refreshRateHz, out string message)
+    {
+        foreach (var mode in EnumerateModesAtCurrentResolution())
         {
-            var candidateMode = CreateDeviceMode();
-
-            if (!EnumDisplaySettings(null, modeNumber, ref candidateMode))
-                break;
-
-            var matchesCurrentResolution =
-                candidateMode.Width == currentMode.Width &&
-                candidateMode.Height == currentMode.Height &&
-                candidateMode.BitsPerPixel == currentMode.BitsPerPixel;
-
-            if (!matchesCurrentResolution ||
-                candidateMode.RefreshRateHz != refreshRateHz)
-            {
+            if (mode.RefreshRateHz != refreshRateHz)
                 continue;
-            }
 
+            var candidateMode = mode;
             candidateMode.Fields = DmDisplayFrequency;
 
             var testResult = ChangeDisplaySettingsEx(
@@ -100,8 +89,35 @@ internal sealed class DisplayService
             return true;
         }
 
-        message = $"{refreshRateHz} Hz is not available at {currentMode.Width}x{currentMode.Height}.";
+        var current = GetPrimaryDisplayInfo();
+        message = current is null
+            ? $"{refreshRateHz} Hz is not available."
+            : $"{refreshRateHz} Hz is not available at {current.Width}x{current.Height}.";
         return false;
+    }
+
+    /// <summary>Every mode Windows reports whose resolution and color depth match the display's current settings.</summary>
+    private static IEnumerable<DeviceMode> EnumerateModesAtCurrentResolution()
+    {
+        var currentMode = CreateDeviceMode();
+
+        if (!EnumDisplaySettings(null, EnumCurrentSettings, ref currentMode))
+            yield break;
+
+        for (var modeNumber = 0; ; modeNumber++)
+        {
+            var candidateMode = CreateDeviceMode();
+
+            if (!EnumDisplaySettings(null, modeNumber, ref candidateMode))
+                yield break;
+
+            if (candidateMode.Width == currentMode.Width &&
+                candidateMode.Height == currentMode.Height &&
+                candidateMode.BitsPerPixel == currentMode.BitsPerPixel)
+            {
+                yield return candidateMode;
+            }
+        }
     }
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]

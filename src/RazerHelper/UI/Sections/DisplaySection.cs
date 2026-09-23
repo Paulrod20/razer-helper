@@ -14,6 +14,8 @@ internal sealed class DisplaySection : SectionPanel
     private readonly DisplayService _displayService;
     private readonly IPowerSource _powerSource;
     private readonly DisplayRefreshMode? _savedMode;
+    private readonly int _fastHz;
+    private readonly int? _secondHz;
     private readonly Label _statusLabel;
     private readonly Dictionary<DisplayRefreshMode, Button> _buttons = [];
     private readonly FullscreenGuard _fullscreenGuard;
@@ -35,6 +37,12 @@ internal sealed class DisplaySection : SectionPanel
         _powerSource = powerSource;
         _savedMode = savedMode;
 
+        var detectedRates = displayService.GetAvailableRefreshRates();
+        // 120 if detection fails, matching what every offered panel supported before this was detected.
+        _fastHz = detectedRates.Count > 0 ? detectedRates[^1] : 120;
+        // Ascending and distinct, so the second-to-last entry is the next rate down from the fastest.
+        _secondHz = detectedRates.Count >= 2 ? detectedRates[^2] : null;
+
         var header = CreateTwoColumnLayout(60F, 40F);
         header.Dock = DockStyle.Top;
         header.Height = S(28);
@@ -52,7 +60,7 @@ internal sealed class DisplaySection : SectionPanel
         header.Controls.Add(CreateSectionLabel("Display"), 0, 0);
         header.Controls.Add(_statusLabel, 1, 0);
 
-        var modes = DisplayRefreshMode.Offered;
+        var modes = OfferedModes();
         var grid = CreateButtonGrid(modes.Select(mode => mode.Label).ToArray(), "RefreshRateButton");
 
         foreach (var button in grid.Controls.OfType<Button>())
@@ -70,6 +78,21 @@ internal sealed class DisplaySection : SectionPanel
 
     /// <summary>Raised after a mode is chosen and applied.</summary>
     public event EventHandler<DisplayRefreshMode>? DisplayModeChanged;
+
+    /// <summary>60 Hz (always offered), the next rate down from the fastest if it differs, the fastest rate if it differs, then Auto.</summary>
+    private IReadOnlyList<DisplayRefreshMode> OfferedModes()
+    {
+        var modes = new List<DisplayRefreshMode> { DisplayRefreshMode.Fixed(DisplayRefreshMode.OnBatteryHz) };
+
+        if (_secondHz is int secondHz && secondHz != DisplayRefreshMode.OnBatteryHz)
+            modes.Add(DisplayRefreshMode.Fixed(secondHz));
+
+        if (_fastHz != DisplayRefreshMode.OnBatteryHz)
+            modes.Add(DisplayRefreshMode.Fixed(_fastHz));
+
+        modes.Add(DisplayRefreshMode.Auto);
+        return modes;
+    }
 
     /// <summary>Re-selects the saved mode, applies it if it is Auto, and shows the current mode.</summary>
     public void Restore()
@@ -171,7 +194,7 @@ internal sealed class DisplaySection : SectionPanel
 
         _retryTimer.Stop();
 
-        var targetHz = DisplayRefreshMode.Auto.TargetHz(isPluggedIn.Value);
+        var targetHz = DisplayRefreshMode.Auto.TargetHz(isPluggedIn.Value, _fastHz);
 
         if (_displayService.GetPrimaryDisplayInfo()?.RefreshRateHz != targetHz &&
             !_displayService.TrySetPrimaryRefreshRate(targetHz, out var message))
