@@ -4,13 +4,23 @@ namespace RazerHelper.Core.Services;
 
 internal sealed class DeviceSupportService
 {
-    public const string SupportedModelName = "Razer Blade 16 (2023)";
+    /// <summary>A generic label for use before detection has run, or when nothing was found.</summary>
+    public const string GenericModelName = "Razer Blade";
 
     /// <summary>
-    /// Whether the hardware this app controls is present. Display controls
-    /// use plain Windows APIs and work on any machine; fan telemetry and the
-    /// battery charge limit need the Razer control interface.
+    /// The name of the connected model, such as "Razer Blade 16 (2023)", if one
+    /// was found. Display controls use plain Windows APIs and work on any
+    /// machine; fan telemetry and the battery charge limit need this.
     /// </summary>
-    public bool IsSupportedDevicePresent() =>
-        RazerHidTransport.IsSupportedDevicePresent();
+    public bool TryGetPresentModelName(out string modelName)
+    {
+        if (RazerHidTransport.TryGetPresentModel(out var model))
+        {
+            modelName = model.Name;
+            return true;
+        }
+
+        modelName = string.Empty;
+        return false;
+    }
 }

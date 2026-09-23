@@ -5,9 +5,6 @@ internal static class RazerPeripheralScanner
 {
     private const int RazerVendorId = RazerHidTransport.RazerVendorId;
 
-    // The laptop's own control device, which is not a peripheral.
-    private const int LaptopProductId = RazerHidTransport.Blade16_2023ProductId;
-
     /// <summary>The product names of connected Razer devices other than the laptop itself.</summary>
     public static IReadOnlyList<string> FindConnectedNames()
     {
@@ -17,8 +14,8 @@ internal static class RazerPeripheralScanner
         {
             foreach (var path in HidDeviceLocator.FindPaths(RazerVendorId))
             {
-                // The laptop's own control device is not a peripheral.
-                if (HidDeviceLocator.Matches(path, RazerVendorId, LaptopProductId))
+                // The laptop's own control device, whichever known model it is, is not a peripheral.
+                if (RazerLaptopModels.Known.Any(model => HidDeviceLocator.Matches(path, RazerVendorId, model.ProductId)))
                     continue;
 
                 var name = HidDeviceLocator.GetProductName(path);

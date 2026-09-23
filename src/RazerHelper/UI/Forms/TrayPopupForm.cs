@@ -35,7 +35,8 @@ public sealed class TrayPopupForm : Form
     private static int PerformanceBaseRowHeight => S(124);
     private static int FanRowHeight => S(108); // Header, the two readouts and the taller Auto / Max buttons.
 
-    private static readonly string ModelText = DeviceSupportService.SupportedModelName;
+    // Set for real once CheckForSupportedDevice() runs; a generic label until then.
+    private string _modelText = DeviceSupportService.GenericModelName;
 
     private bool _allowClose;
     private bool _isResetting;
@@ -498,7 +499,7 @@ public sealed class TrayPopupForm : Form
         Font = GetDesignFont("Segoe UI", 8.5F),
         ForeColor = SubtleTextColor,
         Margin = S(new Padding(12, 0, 0, 0)),
-        Text = ModelText,
+        Text = DeviceSupportService.GenericModelName,
         TextAlign = ContentAlignment.MiddleRight
     };
 
@@ -507,7 +508,7 @@ public sealed class TrayPopupForm : Form
     private void ShowStatus(SectionStatus status)
     {
         _headerStatusLabel.ForeColor = status.IsError ? Color.IndianRed : SubtleTextColor;
-        _headerStatusLabel.Text = status.IsError ? status.Message : ModelText;
+        _headerStatusLabel.Text = status.IsError ? status.Message : _modelText;
 
         // The label cuts long text short with an ellipsis; the tooltip has the rest.
         _toolTip.SetToolTip(_headerStatusLabel, status.IsError ? status.Message : string.Empty);
@@ -515,16 +516,18 @@ public sealed class TrayPopupForm : Form
 
     private void CheckForSupportedDevice()
     {
-        if (new DeviceSupportService().IsSupportedDevicePresent())
+        if (new DeviceSupportService().TryGetPresentModelName(out var modelName))
         {
-            AppLog.Info($"{DeviceSupportService.SupportedModelName} control interface found.");
+            _modelText = modelName;
+            ShowStatus(new SectionStatus(modelName));
+            AppLog.Info($"{modelName} control interface found.");
             return;
         }
 
-        AppLog.Error($"{DeviceSupportService.SupportedModelName} control interface not found.");
+        AppLog.Error("No supported Razer laptop control interface found.");
 
         ShowStatus(new SectionStatus(
-            $"{DeviceSupportService.SupportedModelName} not detected; fan and battery controls unavailable.",
+            "No supported Razer laptop detected; fan and battery controls unavailable.",
             IsError: true));
     }
 

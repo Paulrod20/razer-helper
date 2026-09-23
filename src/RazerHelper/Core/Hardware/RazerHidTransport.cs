@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
@@ -8,7 +9,6 @@ internal sealed class RazerHidTransport : IRazerTransport, IDisposable
 {
     // Also used by the peripheral scanner to tell the laptop apart from other Razer devices.
     internal const int RazerVendorId = 0x1532;
-    internal const int Blade16_2023ProductId = 0x029F;
     private const ushort GetDeviceModeCommand = 0x0084;
     private const int MaximumAttempts = 5;
     private const int ConnectionProbeAttempts = 3;
@@ -45,8 +45,21 @@ internal sealed class RazerHidTransport : IRazerTransport, IDisposable
         }
     }
 
-    public static bool IsSupportedDevicePresent() =>
-        HidDeviceLocator.FindPaths(RazerVendorId, Blade16_2023ProductId).Count > 0;
+    /// <summary>The known Razer laptop model with an HID interface present, if any.</summary>
+    public static bool TryGetPresentModel([NotNullWhen(true)] out RazerLaptopModel? model)
+    {
+        foreach (var candidate in RazerLaptopModels.Known)
+        {
+            if (HidDeviceLocator.FindPaths(RazerVendorId, candidate.ProductId).Count == 0)
+                continue;
+
+            model = candidate;
+            return true;
+        }
+
+        model = null;
+        return false;
+    }
 
     public void Dispose()
     {
@@ -65,52 +78,57 @@ internal sealed class RazerHidTransport : IRazerTransport, IDisposable
         if (_deviceHandle is not null)
             return;
 
-        var paths = HidDeviceLocator.FindPaths(RazerVendorId, Blade16_2023ProductId);
-        var foundAnyDevice = paths.Count > 0;
+        var foundAnyDevice = false;
 
-        foreach (var path in paths)
+        foreach (var model in RazerLaptopModels.Known)
         {
-            // Windows blocks ordinary read/write handles to some system HID
-            // interfaces. A zero-access handle can still exchange feature
-            // reports, which is the same fallback used by hidapi on Windows.
-            var candidate = HidDeviceLocator.OpenForFeatureReports(path);
+            var paths = HidDeviceLocator.FindPaths(RazerVendorId, model.ProductId);
+            foundAnyDevice |= paths.Count > 0;
 
-            if (candidate is null)
-                continue;
-
-            var reportLength = HidDeviceLocator.GetFeatureReportLength(candidate) ?? 0;
-
-            if (reportLength < RazerHidPacket.MinimumFeatureReportLength)
+            foreach (var path in paths)
             {
-                candidate.Dispose();
-                continue;
-            }
+                // Windows blocks ordinary read/write handles to some system HID
+                // interfaces. A zero-access handle can still exchange feature
+                // reports, which is the same fallback used by hidapi on Windows.
+                var candidate = HidDeviceLocator.OpenForFeatureReports(path);
 
-            _deviceHandle = candidate;
-            _featureReportLength = reportLength;
+                if (candidate is null)
+                    continue;
 
-            try
-            {
-                Exchange(
-                    GetDeviceModeCommand,
-                    [0x00, 0x00],
-                    maximumAttempts: ConnectionProbeAttempts);
-                return;
-            }
-            catch
-            {
-                Disconnect();
+                var reportLength = HidDeviceLocator.GetFeatureReportLength(candidate) ?? 0;
+
+                if (reportLength < RazerHidPacket.MinimumFeatureReportLength)
+                {
+                    candidate.Dispose();
+                    continue;
+                }
+
+                _deviceHandle = candidate;
+                _featureReportLength = reportLength;
+
+                try
+                {
+                    Exchange(
+                        GetDeviceModeCommand,
+                        [0x00, 0x00],
+                        maximumAttempts: ConnectionProbeAttempts);
+                    return;
+                }
+                catch
+                {
+                    Disconnect();
+                }
             }
         }
 
         // Distinguish "wrong machine" from "right machine, interface not
         // answering" so callers and logs can tell them apart.
         if (!foundAnyDevice)
-            throw new RazerDeviceNotFoundException(RazerVendorId, Blade16_2023ProductId);
+            throw new RazerDeviceNotFoundException(RazerVendorId);
 
         throw new InvalidOperationException(
-            "The Razer Blade 16 (2023) control interface did not respond " +
-            $"(VID 0x{RazerVendorId:X4}, PID 0x{Blade16_2023ProductId:X4}).");
+            "A supported Razer laptop's control interface did not respond " +
+            $"(VID 0x{RazerVendorId:X4}).");
     }
 
     private byte[] Exchange(
