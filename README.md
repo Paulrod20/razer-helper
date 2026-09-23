@@ -8,7 +8,7 @@ A lightweight, open-source replacement for Razer Synapse on Razer Blade laptops.
 
 It lives in the system tray, talks to the laptop's controller directly, and needs no account, no cloud and no background services of its own.
 
-> **Status: v1.0.** Built and tested on a **Razer Blade 16 (2023)** running Windows 11. Other models are not supported yet. This project is not affiliated with Razer.
+> **Status: v1.0.** Built and tested on a **Razer Blade 16 (2023)** running Windows 11. A few other Blade models are recognized from their product ID and will run the same commands, but are not independently verified; see [Requirements](#requirements). This project is not affiliated with Razer.
 
 ## What it does today
 
@@ -38,7 +38,7 @@ It sits in the tray and does nothing until you open it. Its only timer, which re
 
 ## Not yet
 
-Manual fan control, the CPU overclock toggle, other Blade models, and Razer mice, keyboards and headsets.
+Manual fan control, the CPU overclock toggle, independent verification on any Blade but the one in [Requirements](#requirements), and Razer mice, keyboards and headsets.
 
 **The CPU die temperature is not shown.** Windows does not expose it without a kernel driver (its own thermal zones on this laptop are fixed values that do not move under load), and razer-helper deliberately installs no driver. The CPU figure above comes from a sensor in the laptop's controller instead. It was found by scanning the controller's read-only commands on a Blade 16 (2023), is not documented anywhere, and other Blade models may not have it (the app then simply shows no CPU temperature).
 
@@ -66,7 +66,17 @@ The window is drawn a little larger on high-resolution screens so it stays easy 
 ## Requirements
 
 - Windows 11
-- Razer Blade 16 (2023), USB product ID `0x029F`
+- A supported Razer Blade, found by USB product ID:
+
+  | Model | USB product ID | Verified |
+  | --- | --- | --- |
+  | Razer Blade 16 (2023) | `0x029F` | Yes, on the developer's own unit |
+  | Razer Blade 15 (2022) | `0x028A` | No — community-reported ID only |
+  | Razer Blade 14 (2023) Mercury | `0x029D` | No — community-reported ID only |
+  | Razer Blade 16 (2024) | `0x02B7` | No — community-reported ID only |
+  | Razer Blade 16 (2025) | `0x02C6` | No — community-reported ID only |
+
+  An unverified model runs the exact commands documented in [Credits](#credits); one the firmware does not support simply fails instead of doing something unexpected. If you have one of these and something looks wrong, please [open an issue](https://github.com/Paulrod20/razer-helper/issues) — the log (Settings > "Open log folder") says which model was detected.
 - The [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (choose ".NET Desktop Runtime" for x64). The installer checks for it and will not install without it.
 
 ## Install
