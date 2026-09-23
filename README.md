@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/RazerHelper/Assets/logo.png" width="128" alt="RazerHelper logo: a green disc with a black R">
+  <img src="src/RazerHelper/Assets/logo.png" width="128" alt="RazerHelper logo: a green disc with a black stylized Y-shaped mark inside a partial ring">
 </p>
 
 <h1 align="center">RazerHelper</h1>
@@ -131,6 +131,7 @@ The app sends commands to the laptop's embedded controller over a standard Windo
 - [razer-ctl](https://github.com/tdakhran/razer-ctl) by tdakhran, and its actively maintained continuation [sqmagellan/razer-ctl](https://github.com/sqmagellan/razer-ctl) (MIT): the documented Blade command set this project builds on.
 - [OpenRazer](https://github.com/openrazer/openrazer): the USB protocol reverse-engineering work behind all of the above.
 - [G-Helper](https://github.com/seerge/g-helper): inspiration for the approach to power profiles and service handling. No G-Helper code is used.
+- App icon and logo by [jdsgnrinfo](https://github.com/jdsgnrinfo).
 
 ## Disclaimer
 
