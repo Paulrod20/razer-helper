@@ -516,11 +516,14 @@ public sealed class TrayPopupForm : Form
 
     private void CheckForSupportedDevice()
     {
-        if (new DeviceSupportService().TryGetPresentModelName(out var modelName))
+        if (new DeviceSupportService().TryGetPresentModel(out var model))
         {
-            _modelText = modelName;
-            ShowStatus(new SectionStatus(modelName));
-            AppLog.Info($"{modelName} control interface found.");
+            _modelText = model.Name;
+            ShowStatus(new SectionStatus(model.Name));
+
+            AppLog.Info(model.Verified
+                ? $"{model.Name} control interface found."
+                : $"{model.Name} control interface found (community-reported product id, not verified on this model).");
             return;
         }
 
