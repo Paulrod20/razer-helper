@@ -22,5 +22,9 @@ internal static class RazerLaptopModels
         new RazerLaptopModel(0x029D, "Razer Blade 14 (2023) Mercury", Verified: false),
         new RazerLaptopModel(0x02B7, "Razer Blade 16 (2024)", Verified: false),
         new RazerLaptopModel(0x02C6, "Razer Blade 16 (2025)", Verified: false),
+
+        // Reported directly by a user from their own Device Manager's
+        // Hardware Ids, not from a published table. Same caveat as above.
+        new RazerLaptopModel(0x0255, "Razer Blade 15 Base (2020)", Verified: false),
     ];
 }
