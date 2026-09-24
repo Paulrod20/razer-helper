@@ -150,7 +150,7 @@ internal sealed class DisplaySection : SectionPanel
         _fullscreenGuard.Cancel();
         _retryTimer.Stop();
 
-        if (!_displayService.TrySetPrimaryRefreshRate(mode.FixedHz!.Value, out var message))
+        if (!_displayService.TrySetInternalRefreshRate(mode.FixedHz!.Value, out var message))
         {
             _statusLabel.Text = message;
             return;
@@ -196,8 +196,8 @@ internal sealed class DisplaySection : SectionPanel
 
         var targetHz = DisplayRefreshMode.Auto.TargetHz(isPluggedIn.Value, _fastHz);
 
-        if (_displayService.GetPrimaryDisplayInfo()?.RefreshRateHz != targetHz &&
-            !_displayService.TrySetPrimaryRefreshRate(targetHz, out var message))
+        if (_displayService.GetInternalDisplayInfo()?.RefreshRateHz != targetHz &&
+            !_displayService.TrySetInternalRefreshRate(targetHz, out var message))
         {
             _statusLabel.Text = message;
             return;
@@ -214,7 +214,7 @@ internal sealed class DisplaySection : SectionPanel
 
     private void UpdateDisplayStatus()
     {
-        var displayInfo = _displayService.GetPrimaryDisplayInfo();
+        var displayInfo = _displayService.GetInternalDisplayInfo();
 
         _statusLabel.Text = displayInfo is null
             ? "Display information not available"

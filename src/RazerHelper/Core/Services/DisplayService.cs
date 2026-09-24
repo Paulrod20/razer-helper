@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using RazerHelper.Core.Hardware;
 using RazerHelper.Core.Models;
 
 namespace RazerHelper.Core.Services;
@@ -12,12 +13,19 @@ internal sealed class DisplayService
 
     private static DeviceMode CreateDeviceMode() => new() { Size = (short)Marshal.SizeOf<DeviceMode>() };
 
-    public DisplayInfo? GetPrimaryDisplayInfo()
+    // Null (Windows' "the primary display") when the laptop's own panel
+    // cannot be identified, which is the same as every call here behaved
+    // before this was detected. Re-read each call: which display is internal
+    // cannot change while running, but resolving it fresh costs one more
+    // Win32 call and keeps this from being the one place a stale value lingers.
+    private static string? InternalDeviceName() => DisplayTopology.GetInternalDisplayDeviceName();
+
+    public DisplayInfo? GetInternalDisplayInfo()
     {
         var deviceMode = CreateDeviceMode();
 
         var foundDisplay = EnumDisplaySettings(
-            deviceName: null,
+            deviceName: InternalDeviceName(),
             modeNumber: EnumCurrentSettings,
             deviceMode: ref deviceMode);
 
@@ -34,12 +42,12 @@ internal sealed class DisplayService
         );
     }
 
-    /// <summary>The distinct refresh rates Windows reports for the display's current resolution, ascending.</summary>
+    /// <summary>The distinct refresh rates Windows reports for the internal display's current resolution, ascending.</summary>
     public IReadOnlyList<int> GetAvailableRefreshRates()
     {
         var rates = new SortedSet<int>();
 
-        foreach (var mode in EnumerateModesAtCurrentResolution())
+        foreach (var mode in EnumerateModesAtCurrentResolution(InternalDeviceName()))
         {
             // 0 and 1 are Windows' "use the hardware default" sentinel, not a real rate.
             if (mode.RefreshRateHz > 1)
@@ -49,9 +57,11 @@ internal sealed class DisplayService
         return rates.ToList();
     }
 
-    public bool TrySetPrimaryRefreshRate(int refreshRateHz, out string message)
+    public bool TrySetInternalRefreshRate(int refreshRateHz, out string message)
     {
-        foreach (var mode in EnumerateModesAtCurrentResolution())
+        var deviceName = InternalDeviceName();
+
+        foreach (var mode in EnumerateModesAtCurrentResolution(deviceName))
         {
             if (mode.RefreshRateHz != refreshRateHz)
                 continue;
@@ -60,7 +70,7 @@ internal sealed class DisplayService
             candidateMode.Fields = DmDisplayFrequency;
 
             var testResult = ChangeDisplaySettingsEx(
-                deviceName: null,
+                deviceName: deviceName,
                 deviceMode: ref candidateMode,
                 hwnd: IntPtr.Zero,
                 flags: CdsTest,
@@ -73,7 +83,7 @@ internal sealed class DisplayService
             }
 
             var applyResult = ChangeDisplaySettingsEx(
-                deviceName: null,
+                deviceName: deviceName,
                 deviceMode: ref candidateMode,
                 hwnd: IntPtr.Zero,
                 flags: 0,
@@ -89,26 +99,26 @@ internal sealed class DisplayService
             return true;
         }
 
-        var current = GetPrimaryDisplayInfo();
+        var current = GetInternalDisplayInfo();
         message = current is null
             ? $"{refreshRateHz} Hz is not available."
             : $"{refreshRateHz} Hz is not available at {current.Width}x{current.Height}.";
         return false;
     }
 
-    /// <summary>Every mode Windows reports whose resolution and color depth match the display's current settings.</summary>
-    private static IEnumerable<DeviceMode> EnumerateModesAtCurrentResolution()
+    /// <summary>Every mode Windows reports for <paramref name="deviceName"/> whose resolution and color depth match its current settings.</summary>
+    private static IEnumerable<DeviceMode> EnumerateModesAtCurrentResolution(string? deviceName)
     {
         var currentMode = CreateDeviceMode();
 
-        if (!EnumDisplaySettings(null, EnumCurrentSettings, ref currentMode))
+        if (!EnumDisplaySettings(deviceName, EnumCurrentSettings, ref currentMode))
             yield break;
 
         for (var modeNumber = 0; ; modeNumber++)
         {
             var candidateMode = CreateDeviceMode();
 
-            if (!EnumDisplaySettings(null, modeNumber, ref candidateMode))
+            if (!EnumDisplaySettings(deviceName, modeNumber, ref candidateMode))
                 yield break;
 
             if (candidateMode.Width == currentMode.Width &&
