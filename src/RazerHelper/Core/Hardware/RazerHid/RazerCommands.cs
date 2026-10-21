@@ -11,6 +11,13 @@ namespace RazerHelper.Core.Hardware;
 /// </remarks>
 internal static class RazerCommands
 {
+    // Blade 16 (2023) dual-mode panel. Razer's product-671 middleware defines
+    // one-byte requests: UHD+ = 0, FHD+ = 1. Applying a selection needs reboot.
+    // See docs/mini-led-panel.md for the vendor source and hardware readback.
+    public const ushort SetMiniLedPanelResolution = 0x0D0E;
+    public const ushort GetMiniLedPanelResolution = 0x0D8E;
+    public const ushort GetSkuHardwareConfiguration = 0x0D8F;
+
     // Class 0x0D: performance and fans.
     public const ushort SetPerformanceMode = 0x0D02;
     public const ushort GetPerformanceMode = 0x0D82;

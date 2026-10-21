@@ -21,6 +21,7 @@ public sealed class TrayPopupForm : Form
         Performance,
         Fans,
         Display,
+        MiniLedPanel,
         Battery,
         Lighting,
         Services,
@@ -43,6 +44,7 @@ public sealed class TrayPopupForm : Form
     private int _modalDepth;
     private bool _customRowShown;
     private bool _servicesRowShown;
+    private bool _miniLedRowShown;
     private readonly SettingsService _settingsService;
     // One EC connection shared by every service that talks to the hardware.
     private readonly IRazerTransport _transport;
@@ -52,6 +54,7 @@ public sealed class TrayPopupForm : Form
     private readonly BatterySection _batterySection;
     private readonly LightingSection _lightingSection;
     private readonly DisplaySection _displaySection;
+    private readonly MiniLedPanelSection _miniLedPanelSection;
     private readonly FanSection _fanSection;
     private readonly PerformanceSection _performanceSection;
     private readonly ServicesSection _servicesSection;
@@ -96,7 +99,8 @@ public sealed class TrayPopupForm : Form
         ILoginEntries? loginEntries = null,
         IRazerApps? razerApps = null,
         IGpuTemperatureSource? gpuTemperature = null,
-        IFullscreenDetector? fullscreenDetector = null)
+        IFullscreenDetector? fullscreenDetector = null,
+        MiniLedPanelService? miniLedPanelService = null)
     {
         _transport = transport;
         _powerSource = powerSource;
@@ -140,6 +144,15 @@ public sealed class TrayPopupForm : Form
             DisplayRefreshMode.Parse(_settings.DisplayMode),
             fullscreenDetector);
         _displaySection.DisplayModeChanged += DisplaySection_DisplayModeChanged;
+
+        _miniLedPanelSection = new MiniLedPanelSection(miniLedPanelService ??
+            new MiniLedPanelService(_transport, ownsDependencies ? null : () => null));
+        _miniLedPanelSection.ModalStateChanged += ServicesSection_ModalStateChanged;
+        _miniLedPanelSection.AvailabilityChanged += (_, available) =>
+        {
+            _miniLedRowShown = available;
+            ResizeToFitRows();
+        };
 
         _batterySection = new BatterySection(
             new BatteryChargeLimitService(_transport),
@@ -190,6 +203,7 @@ public sealed class TrayPopupForm : Form
         CheckForSupportedDevice();
 
         _displaySection.Restore();
+        _ = _miniLedPanelSection.InitializeAsync();
         _ = _batterySection.RestoreAsync();
         _ = _performanceSection.RestoreAsync();
         _ = _servicesSection.RefreshAsync();
@@ -302,6 +316,7 @@ public sealed class TrayPopupForm : Form
         AddRow(Row.Performance, _performanceSection, PerformanceBaseRowHeight);
         AddRow(Row.Fans, _fanSection, FanRowHeight);
         AddRow(Row.Display, _displaySection, DisplayRowHeight);
+        AddRow(Row.MiniLedPanel, _miniLedPanelSection, 0);
         AddRow(Row.Battery, _batterySection, BatteryRowHeight);
         AddRow(Row.Lighting, _lightingSection, LightingSection.RowHeight);
         AddRow(Row.Services, _servicesSection, 0); // Grows when Razer's software is installed.
@@ -325,8 +340,8 @@ public sealed class TrayPopupForm : Form
 
     private RowStyle RowStyleOf(Row row) => _content.RowStyles[(int)row];
 
-    // Two rows change height: Performance gains the Custom boost row, and the
-    // Razer services row only exists when Razer's software is installed. Grow
+    // Performance gains the Custom boost row; the panel and Razer services
+    // rows only appear when supported hardware or software is detected. Grow
     // or shrink the popup to match, then re-anchor it to the taskbar so it
     // does not end up floating or overlapping it.
     private void ResizeToFitRows()
@@ -334,6 +349,7 @@ public sealed class TrayPopupForm : Form
         RowStyleOf(Row.Performance).Height = PerformanceBaseRowHeight +
             (_customRowShown ? CustomBoostRow.RowHeight : 0);
         RowStyleOf(Row.Services).Height = _servicesRowShown ? ServicesSection.RowHeight : 0;
+        RowStyleOf(Row.MiniLedPanel).Height = _miniLedRowShown ? MiniLedPanelSection.RowHeight : 0;
 
         var contentHeight = _content.Padding.Vertical +
             _content.RowStyles.Cast<RowStyle>().Sum(row => row.Height);

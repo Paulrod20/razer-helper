@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add a Mini-LED native panel-mode selector for the Blade 16 (2023), gated by
+  the firmware's capability flag: UHD+ 120 Hz or FHD+ 240 Hz. Confirm the saved
+  selection over HID, then ask whether to restart Windows now or later. No Synapse
+  or additional driver is required. Hardware reads and BIOS switching are
+  verified; the new app setter still needs a physical reboot test.
+
 ## 1.0.0
 
 The first release. Built and tested on a **Razer Blade 16 (2023)** running Windows 11. Other models are not supported yet.
