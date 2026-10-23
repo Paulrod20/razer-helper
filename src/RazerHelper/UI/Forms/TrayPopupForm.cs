@@ -736,6 +736,10 @@ public sealed class TrayPopupForm : Form
             // A game may have changed the resolution or refresh rate since it was last read.
             _displaySection.RefreshStatus();
 
+            // Retry a panel read that failed during startup. Once detected,
+            // transient HID failures do not remove the panel controls.
+            _ = _miniLedPanelSection.InitializeAsync();
+
             // Fn+P changes the mode without telling us; show what the EC has.
             _ = _performanceSection.RefreshAsync();
 

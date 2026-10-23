@@ -16,6 +16,8 @@ internal sealed class MiniLedPanelSection : SectionPanel
     private readonly LinkLabel _restart;
     private MiniLedPanelMode? _selected;
     private bool _busy;
+    private bool _refreshInProgress;
+    private bool _panelDetected;
 
     public MiniLedPanelSection(MiniLedPanelService service)
     {
@@ -59,19 +61,30 @@ internal sealed class MiniLedPanelSection : SectionPanel
 
     public async Task InitializeAsync()
     {
+        if (_refreshInProgress || _busy || IsDisposed)
+            return;
+        _refreshInProgress = true;
         try
         {
             var mode = await _service.GetSelectedModeAsync();
             if (IsDisposed || mode is null)
                 return;
             ShowSelection(mode.Value);
-            Visible = true;
-            AvailabilityChanged?.Invoke(this, true);
+            if (!_panelDetected)
+            {
+                _panelDetected = true;
+                Visible = true;
+                AvailabilityChanged?.Invoke(this, true);
+            }
         }
         catch (Exception exception)
         {
             // Unsupported firmware must not break the ordinary display controls.
             AppLog.Error("Mini-LED panel mode detection unavailable.", exception);
+        }
+        finally
+        {
+            _refreshInProgress = false;
         }
     }
 

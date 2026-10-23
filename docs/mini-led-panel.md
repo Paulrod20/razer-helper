@@ -9,6 +9,11 @@ RazerHelper offers the panel controls only for USB PID `029F` when the firmware'
 SKU capability bit confirms Mini-LED support. Other models are intentionally
 excluded until their protocol and hardware have been checked.
 
+Detection runs at startup and when the popup opens. A temporary startup read
+failure can recover on a later opening. Once a panel is detected, a temporary
+read failure does not remove its controls. Writes still recheck model and
+firmware capability before changing anything.
+
 The highlighted button is the firmware selection, which can be waiting for a
 restart. The ordinary Display status continues to show what Windows is currently
 using. Selecting a panel mode is a manual action, never a power-profile setting.
